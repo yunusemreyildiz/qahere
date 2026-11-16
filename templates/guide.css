@@ -78,6 +78,7 @@ tr{break-inside:avoid}
 .chk .pf b{font:600 10.5px/1 var(--sans);padding:2px 6px;border-radius:3px;background:#eef0f2;color:#5c636a;white-space:nowrap}
 .chk .pf b.pass{background:#e3f2e7;color:#1f7a3a}
 .chk .pf b.fail{background:#fbe3e6;color:#c4001a}
+.chk .pf .bugref{font:600 10.5px/1 var(--mono);padding:2px 6px;border-radius:3px;background:#fbe3e6;color:#c4001a;text-decoration:none}
 /* Uygulama içinde tıklanabilir (html.live betikle eklenir) */
 html.live .chk li[data-c]{cursor:pointer}
 html.live .chk li[data-c]:not([data-done]):hover::before{background:var(--brand-soft)}

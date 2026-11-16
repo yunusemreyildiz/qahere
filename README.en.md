@@ -153,6 +153,19 @@ npm run doctor
 
 One guide is generated at a time; wait for the first to finish or **cancel** it.
 
+### Filing a bug
+
+Pick **Kaldı** (Failed) from an item's platform button and the bug window opens:
+
+1. Fill in **Ne oldu?** (What happened?). The expected behaviour comes from the item; add steps if you like.
+2. Paste a screenshot (⌘V), drag one in, or grab it from the running device with **iOS simülatöründen al / Android emülatöründen al** (from the iOS simulator / Android emulator).
+3. **Taslağı hazırla** (Prepare draft): Claude writes the title and description in a short call of a few seconds, with no tools.
+4. Edit the title and text in the preview. Nothing is created until you press **Jira'da aç** (Open in Jira).
+
+The new issue gets the screenshots attached, is linked to the guide's issue and, if configured, added to the active sprint. Its key appears next to the item and in the PDF. qaHere creates it with your Jira token, not Claude.
+
+Project, issue type (Bug, Defect…), title format (e.g. `{platform} - {konu} Bug`), assignee per platform, sprint board and extra fields are set under **Ayarlar → Hata kaydı** (Settings → Bug filing). Without a token you still get the draft; copy it with **Metni kopyala** and file it by hand.
+
 ### Updating
 
 When qaHere opens, it checks GitHub for a new version. If there is one, a **Yeni sürüm var** (New version) window lists what changed; press **Güncelle** (Update) and qaHere downloads it and restarts itself. Your settings, guides and ticks stay as they are. To check by hand: top right, **Durum → Yeni sürümü denetle** (Status → Check for a new version).
@@ -225,7 +238,8 @@ You can also provide the same values in a `.env` file (see `.env.example`); sett
 ## Security and privacy
 
 - The server listens on `127.0.0.1` only and accepts requests only from a browser on the same computer.
-- Claude gets **read-only** tools. Sending messages, creating or editing issues, writing files, running commands and web access are all disabled.
+- Claude gets **read-only** tools. Sending messages, creating or editing issues, writing files, running commands and web access are all disabled. Writing a bug draft gets no tools at all.
+- The only thing that writes to Jira is bug filing: after you review the preview and press **Jira'da aç**, qaHere creates the issue with your token.
 - The Jira token is never sent back to the UI and goes only to the Jira address you entered; it's deleted if the address changes.
 - The guide is shown with scripts stripped, inside a sandboxed frame. The only script allowed to run there is qaHere's own viewer, added fresh on every open.
 - Settings, token, guides and ticks stay on your computer (`data/` and `.env`; neither is committed).

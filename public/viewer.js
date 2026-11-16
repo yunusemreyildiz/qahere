@@ -117,7 +117,11 @@
   const items = [...d.querySelectorAll('.chk li[data-c]')];
   const results = {};
   for (const li of items) {
-    li.querySelector(':scope > .pf')?.remove(); // PDF/yeni sekme etiketi; burada yerine düğmeler gelir
+    // PDF/yeni sekme etiketi; burada yerine düğmeler gelir. Hata kaydı bağlantıları korunur.
+    const pf = li.querySelector(':scope > .pf');
+    const refs = pf ? [...pf.querySelectorAll('a.bugref')] : [];
+    pf?.remove();
+    if (refs.length) { const bx = make('span', 'bugs'); bx.append(...refs); li.append(bx); }
     const r = {};
     for (const p of ALL) if (OUT[li.dataset[p]]) r[p] = li.dataset[p];
     if (Object.keys(r).length) results[li.dataset.c] = r;
@@ -126,7 +130,13 @@
   const isDone = (li) => platforms.every((p) => res(li)[p] === 'pass' || res(li)[p] === 'na');
   const isFail = (li) => platforms.some((p) => res(li)[p] === 'fail');
   const isOpen = (li) => platforms.some((p) => !res(li)[p]);
-  const textOf = (li) => [...li.childNodes].filter((n) => !(n.nodeType === 1 && n.matches('.pfc, .tick'))).map((n) => n.textContent).join('').replace(/\s+/g, ' ').trim();
+  const textOf = (li) => [...li.childNodes].filter((n) => !(n.nodeType === 1 && n.matches('.pfc, .tick, .bugs'))).map((n) => n.textContent).join('').replace(/\s+/g, ' ').trim();
+  const sectionOf = (li) => {
+    let h = null;
+    for (const el of (li.closest('.sec, details') || d).querySelectorAll('h3, .chk li[data-c]')) { if (el === li) break; if (el.tagName === 'H3') h = el; }
+    return h ? clean(h.textContent) : '';
+  };
+  const askBug = (li, p) => parent.postMessage({ qa: 'fail', c: Number(li.dataset.c), platform: p, text: textOf(li), section: sectionOf(li) }, '*');
 
   const groupsOf = (sec) => {
     const out = [];
@@ -323,18 +333,21 @@
     menu.replaceChildren(make('div', 'pmh', PL[p].label));
     const opts = [['pass', 'Geçti'], ['fail', 'Kaldı'], ['na', 'Bu platformda uygulanmaz']];
     if (cur) opts.push(['', 'İşareti kaldır']);
+    if (cur === 'fail') opts.push(['bug', 'Hata kaydı aç']);
     for (const [v, label] of opts) {
       const o = make('button', `pmi ${v ? `o-${v}` : 'o-clear'}`);
       o.type = 'button';
-      o.setAttribute('role', v ? 'menuitemradio' : 'menuitem');
-      if (v) o.setAttribute('aria-checked', String(cur === v));
-      o.append(make('span', 'pmk', v ? MARK[v] : ''), label);
+      const isState = v && v !== 'bug';
+      o.setAttribute('role', isState ? 'menuitemradio' : 'menuitem');
+      if (isState) o.setAttribute('aria-checked', String(cur === v));
+      o.append(make('span', 'pmk', MARK[v] || (v === 'bug' ? '+' : '')), label);
       o.addEventListener('click', (e) => {
         e.stopPropagation();
+        closeMenu(true);
+        if (v === 'bug') return askBug(li, p);
         set(li, p, v || null);
         update(li);
-        if (v === 'fail') parent.postMessage({ qa: 'fail', c: Number(li.dataset.c), platform: p, text: textOf(li) }, '*');
-        closeMenu(true);
+        if (v === 'fail') askBug(li, p);
       });
       menu.append(o);
     }
@@ -373,6 +386,19 @@
     li.classList.remove('flash');
     void li.offsetWidth;
     li.classList.add('flash');
+  });
+  // Uygulama, açılan hata kaydını bildirir: maddeye bağlantısı eklenir.
+  addEventListener('message', (e) => {
+    if (e.source !== parent || e.data?.qa !== 'bug') return;
+    const { c, key, url } = e.data;
+    const li = items.find((x) => Number(x.dataset.c) === c);
+    if (!li || !/^[A-Z][A-Z0-9]+-\d+$/.test(key) || !/^https:\/\//.test(url)) return;
+    let bx = li.querySelector(':scope > .bugs');
+    if (!bx) { bx = make('span', 'bugs'); li.insertBefore(bx, chips.get(li).map.ios.parentNode); }
+    if ([...bx.children].some((a) => a.textContent === key)) return;
+    const a = make('a', 'bugref', key);
+    a.href = url; a.target = '_blank'; a.rel = 'noopener'; a.title = 'Hata kaydı';
+    bx.append(a);
   });
   onlyBox.addEventListener('change', () => root.classList.toggle('only-open', onlyBox.checked));
   items.forEach(paintItem);

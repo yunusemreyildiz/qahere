@@ -5,11 +5,13 @@ import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import os from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { jiraConfigured, jiraBaseUrl, listEpics, searchIssues, getIssueTree, parseIssueKey, testConnection } from './lib/jira.js';
+import { jiraConfigured, jiraBaseUrl, listEpics, searchIssues, getIssueTree, parseIssueKey, testConnection, listIssueTypes, listLinkTypes, searchUsers } from './lib/jira.js';
+import { draftBug, fileBug } from './lib/bug.js';
 import { getSettings, publicSettings, saveSettings } from './lib/config.js';
 import { generateGuide } from './lib/generate.js';
-import { saveGuide, listGuides, deleteGuide, guidePaths, dataDir, setResults, guideHtml } from './lib/store.js';
+import { saveGuide, listGuides, deleteGuide, guidePaths, dataDir, setResults, guideHtml, addBug } from './lib/store.js';
 import { findBrowser, renderPdf } from './lib/pdf.js';
 import { checkUpdate, applyUpdate, RESTART_CODE } from './lib/update.js';
 
@@ -91,7 +93,10 @@ app.use((req, res, next) => {
   }
   next();
 });
-app.use(express.json({ limit: '100kb' }));
+// Hata kaydı ekran görüntüleri taşıdığı için yalnızca o uçta sınır büyük.
+const jsonSmall = express.json({ limit: '100kb' });
+const jsonLarge = express.json({ limit: '40mb' });
+app.use((req, res, next) => (req.path === '/api/bugs' ? jsonLarge : jsonSmall)(req, res, next));
 app.use(express.static(path.join(root, 'public')));
 
 const wrap = (fn) => (req, res, next) => fn(req, res, next).catch(next);
@@ -223,6 +228,46 @@ app.put('/api/guides/:key/:id/results', wrap(async (req, res) => {
   if (platforms != null && !Array.isArray(platforms)) return res.status(400).json({ error: 'platforms bir dizi olmalı.' });
   const rec = await setResults(req.params.key, req.params.id, { results, platforms }, Number(req.body.rev));
   res.json({ checks: rec.checks, failed: rec.failed, checkTotal: rec.checkTotal, platforms: rec.platforms });
+}));
+
+// ---- Hata kaydı ----------------------------------------------------------------
+
+app.get('/api/jira/issuetypes', wrap(async (req, res) => res.json({ types: await listIssueTypes(req.query.project) })));
+app.get('/api/jira/linktypes', wrap(async (_req, res) => res.json({ types: await listLinkTypes() })));
+app.get('/api/jira/users', wrap(async (req, res) => res.json({ users: await searchUsers(req.query.q, req.query.project) })));
+
+app.post('/api/bugs/draft', wrap(async (req, res) => res.json(await draftBug(req.body || {}))));
+
+// Kullanıcının önizleyip onayladığı kaydı açar ve rehberdeki maddeye bağlar.
+app.post('/api/bugs', wrap(async (req, res) => {
+  if (!jiraConfigured()) return res.status(400).json({ error: 'Hata kaydı açmak için Ayarlar\'dan Jira token\'ını gir.' });
+  const b = req.body || {};
+  const storyKey = parseIssueKey(b.storyKey);
+  const bug = await fileBug({ storyKey, platform: b.platform, summary: b.summary, description: b.description, images: Array.isArray(b.images) ? b.images : [] });
+  if (storyKey && b.guideId != null && b.c != null) {
+    const p = guidePaths(storyKey, String(b.guideId));
+    if (fs.existsSync(p.meta)) await addBug(storyKey, String(b.guideId), b.c, bug).catch(() => {});
+  }
+  res.json(bug);
+}));
+
+// Açık simülatörden ya da emülatörden ekran görüntüsü (yerel komutlar; dışarıya bir şey gitmez).
+app.post('/api/screenshot', wrap(async (req, res) => {
+  const platform = req.body?.platform;
+  const tmp = path.join(os.tmpdir(), `qahere-shot-${crypto.randomUUID()}.png`);
+  try {
+    if (platform === 'ios') {
+      const r = await run('xcrun', ['simctl', 'io', 'booted', 'screenshot', '--type=png', tmp], 20_000);
+      if (!r.ok) return res.status(400).json({ error: 'Açık bir iOS simülatörü bulunamadı.' });
+    } else if (platform === 'android') {
+      const r = await new Promise((resolve) => execFile('adb', ['exec-out', 'screencap', '-p'], { encoding: 'buffer', maxBuffer: 50 * 1024 * 1024, timeout: 20_000 },
+        (err, stdout) => resolve({ ok: !err && stdout?.length > 100, data: stdout })));
+      if (!r.ok) return res.status(400).json({ error: 'Bağlı bir Android emülatörü ya da cihazı bulunamadı.' });
+      await fsp.writeFile(tmp, r.data);
+    } else return res.status(400).json({ error: 'Platform ios ya da android olmalı.' });
+    const data = await fsp.readFile(tmp);
+    res.json({ name: `${platform}-ekran.png`, type: 'image/png', data: data.toString('base64') });
+  } finally { fsp.rm(tmp, { force: true }).catch(() => {}); }
 }));
 
 app.get('/guides/:key/:id.html', wrap(async (req, res) => {

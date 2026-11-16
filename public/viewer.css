@@ -110,6 +110,14 @@ html.live .pl[data-s="pass"].p-android svg circle{fill:color-mix(in srgb,var(--o
 html.live .pl[data-s="fail"].p-android svg circle{fill:color-mix(in srgb,var(--bad) 10%,#fff)}
 html.live .pl[data-s="na"].p-android svg circle{fill:#f1f2f4}
 
+/* Maddeye açılan hata kayıtları */
+html.live .bugs{display:inline-flex;gap:6px;margin-left:8px;vertical-align:1px}
+html.live .bugref{font:600 12px/1 var(--mono);color:var(--bad);background:color-mix(in srgb,var(--bad) 9%,#fff);border-radius:5px;padding:3px 6px;text-decoration:none;white-space:nowrap}
+html.live .bugref:hover{text-decoration:underline}
+html.live .chk li[data-done] .bugs{text-decoration:none}
+html.live .o-bug{color:var(--bad);border-top:1px solid #eef0f2;border-radius:0 0 7px 7px;margin-top:3px}
+html.live .o-bug .pmk{background:color-mix(in srgb,var(--bad) 12%,#fff);color:var(--bad)}
+
 /* Platform menüsü */
 html.live .pmenu{position:absolute;z-index:20;min-width:210px;background:#fff;border-radius:10px;padding:5px;box-shadow:0 0 0 1px #e3e6e9,0 12px 32px rgba(20,24,28,.16)}
 html.live .pmenu[hidden]{display:none}

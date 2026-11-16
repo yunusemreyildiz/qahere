@@ -151,6 +151,19 @@ npm run doctor
 
 Aynı anda tek rehber üretilir; ikincisi için ilkinin bitmesini bekle ya da **İptal** et.
 
+### Hata kaydı açmak
+
+Bir maddede platform düğmesinden **Kaldı**'yı seçince hata kaydı penceresi açılır:
+
+1. **Ne oldu?** alanını yaz; beklenen davranış maddenin metninden gelir, istersen adımları ekle.
+2. Ekran görüntüsünü yapıştır (⌘V), sürükle ya da **iOS simülatöründen al / Android emülatöründen al** ile açık cihazdan çek.
+3. **Taslağı hazırla**: Claude, araç kullanmadan birkaç saniyelik kısa bir çağrıyla başlığı ve açıklamayı yazar.
+4. Önizlemede başlığı ve metni düzelt. **Jira'da aç**'a basmadan hiçbir şey açılmaz.
+
+Kayıt açılınca görseller eklenir, rehberin işiyle bağlanır, ayarlandıysa aktif sprinte alınır. Kayıt numarası maddenin yanında ve PDF'te görünür. Kaydı Claude değil, qaHere senin Jira token'ınla açar.
+
+Proje, kayıt türü (Bug, Defect…), başlık biçimi (ör. `{platform} - {konu} Bug`), platforma göre atanan kişi, sprint panosu ve ek alanlar **Ayarlar → Hata kaydı** bölümünden ayarlanır. Token yoksa taslak yine hazırlanır; **Metni kopyala** ile elle açabilirsin.
+
 ### Güncelleme
 
 qaHere açılırken GitHub'da yeni sürüm olup olmadığına bakar. Varsa **Yeni sürüm var** penceresi neyin değiştiğini gösterir; **Güncelle**'ye basınca yeni sürüm indirilir ve qaHere kendini yeniden başlatır. Ayarların, rehberlerin ve işaretlerin olduğu gibi kalır. Elle denetlemek için: sağ üstte **Durum → Yeni sürümü denetle**.
@@ -223,7 +236,8 @@ Aynı değerleri `.env` dosyasıyla da verebilirsin (bkz. `.env.example`); aray�
 ## Güvenlik ve gizlilik
 
 - Sunucu yalnızca `127.0.0.1`'i dinler ve yalnızca bu bilgisayardaki tarayıcıdan gelen istekleri kabul eder.
-- Claude'a yalnızca **okuma** araçları açılır. Mesaj gönderme, issue oluşturma ya da değiştirme, dosya yazma, komut çalıştırma ve web erişimi kapalıdır.
+- Claude'a yalnızca **okuma** araçları açılır. Mesaj gönderme, issue oluşturma ya da değiştirme, dosya yazma, komut çalıştırma ve web erişimi kapalıdır. Hata kaydı taslağını yazarken hiç araç verilmez.
+- Jira'ya yazan tek iş hata kaydıdır: önizlemeyi görüp **Jira'da aç**'a bastığında qaHere kaydı senin token'ınla açar.
 - Jira token'ı arayüze geri gönderilmez, yalnızca girdiğin Jira adresine gider; adres değişince silinir.
 - Rehber, betikleri temizlenmiş olarak korumalı bir çerçevede gösterilir. Çerçevede yalnızca qaHere'nin her açılışta eklediği görüntüleyici betiği çalışabilir.
 - Ayarlar, token, rehberler ve işaretler yalnızca senin bilgisayarında durur (`data/` ve `.env`; ikisi de git'e girmez).

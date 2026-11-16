@@ -160,11 +160,12 @@ $('#statusBtn').addEventListener('click', () => showStatus());
 
 function draftFrom(cfg) {
   return { workspace: cfg.workspace, jiraBaseUrl: cfg.jiraBaseUrl, jiraEmail: cfg.jiraEmail, jiraApiToken: '', hasToken: cfg.hasToken,
-    projects: [...cfg.projects], sources: { ...cfg.sources }, model: cfg.model, accent: cfg.accent };
+    projects: [...cfg.projects], sources: { ...cfg.sources }, model: cfg.model, accent: cfg.accent,
+    bug: JSON.parse(JSON.stringify(cfg.bug || {})) };
 }
 
 async function saveDraft(d, extra = {}) {
-  const body = { workspace: d.workspace, jiraBaseUrl: d.jiraBaseUrl, jiraEmail: d.jiraEmail, projects: d.projects, sources: d.sources, model: d.model, accent: d.accent, ...extra };
+  const body = { workspace: d.workspace, jiraBaseUrl: d.jiraBaseUrl, jiraEmail: d.jiraEmail, projects: d.projects, sources: d.sources, model: d.model, accent: d.accent, bug: d.bug, ...extra };
   if (d.jiraApiToken) body.jiraApiToken = d.jiraApiToken;
   applyConfig(await send('/api/settings', 'PUT', body));
 }
@@ -260,6 +261,95 @@ function lookSection(d) {
   );
 }
 
+const BUG_PL = [{ key: 'ios', name: 'iOS' }, { key: 'android', name: 'Android' }, { key: 'both', name: 'İki platform' }];
+
+function bugSection(d) {
+  const b = d.bug;
+  const project = () => b.project || d.projects[0] || '';
+  const typeSel = h('select', { class: 'bare-sel', onchange: () => { b.issueType = typeSel.value; } }, h('option', { value: b.issueType }, b.issueType));
+  const linkSel = h('select', { class: 'bare-sel', onchange: () => { b.linkType = linkSel.value; } }, h('option', { value: b.linkType }, b.linkType));
+  const fillSelect = (sel, items, cur) => sel.replaceChildren(...[...new Set([cur, ...items])].filter(Boolean).map((v) => { const o = h('option', { value: v }, v); if (v === cur) o.selected = true; return o; }));
+  const loadMeta = async () => {
+    if (!state.config.jiraConfigured) return;
+    if (project()) api(`/api/jira/issuetypes?project=${encodeURIComponent(project())}`).then((r) => fillSelect(typeSel, r.types.map((t) => t.name), b.issueType)).catch(() => {});
+    api('/api/jira/linktypes').then((r) => fillSelect(linkSel, r.types.map((t) => t.name), b.linkType)).catch(() => {});
+  };
+  queueMicrotask(loadMeta);
+  const projInput = h('input', { class: 'bare', placeholder: 'Boşsa rehberin işiyle aynı proje', value: b.project || '', autocomplete: 'off', spellcheck: 'false',
+    oninput: () => { b.project = projInput.value.trim().toUpperCase(); }, onchange: loadMeta });
+  const fmt = h('input', { class: 'bare', value: b.titleFormat, spellcheck: 'false', oninput: () => { b.titleFormat = fmt.value; } });
+
+  const assigneeRow = (pl) => {
+    const shown = h('span', {}, b.assignees?.[pl.key]?.name || 'Atanmasın');
+    const q = h('input', { class: 'bare', placeholder: 'Ad yaz…', autocomplete: 'off', spellcheck: 'false' });
+    const list = h('div', { class: 'chips' });
+    let t;
+    q.addEventListener('input', () => {
+      clearTimeout(t);
+      const text = q.value.trim();
+      if (text.length < 2) return list.replaceChildren();
+      t = setTimeout(async () => {
+        try {
+          const r = await api(`/api/jira/users?q=${encodeURIComponent(text)}&project=${encodeURIComponent(project())}`);
+          list.replaceChildren(...r.users.slice(0, 8).map((u) => h('button', { type: 'button', class: 'chip', onclick: () => {
+            b.assignees[pl.key] = { id: u.id, name: u.name }; shown.textContent = u.name; q.value = ''; list.replaceChildren();
+          } }, u.name)));
+        } catch (e) { list.replaceChildren(h('span', { class: 'hint' }, e.message)); }
+      }, 300);
+    });
+    const clear = h('button', { class: 'btn link sm', type: 'button', onclick: () => { b.assignees[pl.key] = null; shown.textContent = 'Atanmasın'; } }, 'Kaldır');
+    return h('div', { class: 'row stack' },
+      h('div', { class: 'between' }, h('div', { class: 'grow' }, h('b', {}, `${pl.name} hataları`), shown), clear),
+      q, list);
+  };
+
+  const names = h('div', { class: 'trio' }, ...BUG_PL.map((pl) => {
+    const i = h('input', { class: 'input', value: b.names?.[pl.key] || '', 'aria-label': `${pl.name} başlık adı`, oninput: () => { b.names[pl.key] = i.value; } });
+    return h('label', { class: 'f' }, pl.name, i);
+  }));
+
+  const fieldsBox = h('div', {}, ...BUG_PL.map((pl) => {
+    const ta = h('textarea', { class: 'input mono', spellcheck: 'false', rows: '3', placeholder: '{ "components": [{ "name": "…" }] }' });
+    ta.value = Object.keys(b.fields?.[pl.key] || {}).length ? JSON.stringify(b.fields[pl.key], null, 1) : '';
+    const err = h('span', { class: 'hint bad-text' });
+    ta.addEventListener('input', () => {
+      const v = ta.value.trim();
+      if (!v) { b.fields[pl.key] = {}; err.textContent = ''; return; }
+      try { const o = JSON.parse(v); if (!o || typeof o !== 'object' || Array.isArray(o)) throw new Error(); b.fields[pl.key] = o; err.textContent = ''; }
+      catch { err.textContent = 'Geçerli bir JSON nesnesi değil; kaydedilmez.'; }
+    });
+    return h('label', { class: 'f' }, `${pl.name} için ek alanlar`, ta, err);
+  }));
+
+  const board = h('input', { class: 'bare', inputmode: 'numeric', placeholder: 'Pano numarası (isteğe bağlı)', value: b.sprintBoard || '', oninput: () => { b.sprintBoard = board.value.replace(/\D/g, ''); } });
+  const sprintFor = h('div', { class: 'chips' }, ...BUG_PL.map((pl) => {
+    const c = h('button', { type: 'button', class: `chip${b.sprintFor?.includes(pl.key) ? ' on' : ''}`, onclick: () => {
+      b.sprintFor = b.sprintFor.includes(pl.key) ? b.sprintFor.filter((k) => k !== pl.key) : [...b.sprintFor, pl.key];
+      c.classList.toggle('on', b.sprintFor.includes(pl.key));
+    } }, pl.name);
+    return c;
+  }));
+
+  return h('div', {},
+    state.config.jiraConfigured ? null : h('div', { class: 'msg warn', style: 'margin:0 0 14px' }, 'Hata kaydı açmak için önce Jira token\'ını gir. Token olmadan taslak hazırlanır, metni kopyalayabilirsin.'),
+    h('div', { class: 'group' },
+      h('label', { class: 'row' }, h('span', { class: 'lab' }, 'Proje'), h('div', { class: 'grow' }, projInput)),
+      h('label', { class: 'row' }, h('span', { class: 'lab' }, 'Kayıt türü'), h('div', { class: 'grow' }, typeSel)),
+      h('label', { class: 'row' }, h('span', { class: 'lab' }, 'Başlık biçimi'), h('div', { class: 'grow' }, fmt)),
+      h('div', { class: 'row stack' }, h('span', { class: 'hint' }, '{platform} yerine aşağıdaki ad, {konu} yerine hatanın kısa adı gelir. Örn. "{platform} - {konu} Bug".'), names),
+      h('label', { class: 'row' }, h('span', { class: 'lab' }, 'Story ile bağ'), h('div', { class: 'grow' }, linkSel))),
+    h('div', { class: 'group-title' }, 'Atananlar'),
+    h('div', { class: 'group' }, ...BUG_PL.map(assigneeRow)),
+    h('div', { class: 'group-title' }, 'Sprint'),
+    h('div', { class: 'group' },
+      h('label', { class: 'row' }, h('span', { class: 'lab' }, 'Pano'), h('div', { class: 'grow' }, board)),
+      h('div', { class: 'row stack' }, h('span', { class: 'hint' }, 'Hangi kayıtlar panonun aktif sprintine alınsın?'), sprintFor)),
+    h('details', { class: 'adv' }, h('summary', {}, 'Gelişmiş: platforma göre ek alanlar'),
+      h('p', { class: 'hint' }, 'Jira kaydına eklenecek alanlar, Jira REST biçiminde (bileşen, özel alan gibi). Boş bırakılabilir.'),
+      fieldsBox),
+  );
+}
+
 function openSettings() {
   const d = draftFrom(state.config);
   const before = state.config.accent;
@@ -273,6 +363,7 @@ function openSettings() {
   openSheet('Ayarlar', h('div', {},
     h('div', { class: 'group-title' }, 'Jira'), jiraSection(d),
     h('div', { class: 'group-title' }, 'Kaynaklar'), sourcesSection(d),
+    h('div', { class: 'group-title' }, 'Hata kaydı'), bugSection(d),
     h('div', { class: 'group-title' }, 'Görünüm'), lookSection(d),
     h('div', { class: 'group' }, h('div', { class: 'row' }, h('div', { class: 'grow' }, h('b', {}, 'Kurulum adımları'), h('span', {}, 'İlk açılıştaki adımları yeniden göster.')),
       h('button', { class: 'btn plain sm', type: 'button', onclick: () => { closeSheet(); startOnboarding(); } }, 'Aç'))),
@@ -522,6 +613,9 @@ function renderGuides(key, guides, selectedId) {
   state.onChecks = (e) => {
     if (e.source !== frame.contentWindow) return;
     const msg = e.data || {};
+    if (msg.qa === 'fail' && Number.isInteger(msg.c)) {
+      return openBugSheet({ g, frame, c: msg.c, platform: msg.platform, item: String(msg.text || '').slice(0, 1500), section: String(msg.section || '').slice(0, 200) });
+    }
     if (msg.qa !== 'results' || typeof msg.results !== 'object' || !Array.isArray(msg.platforms)) return;
     const mine = ++seq;
     fetch(`/api/guides/${g.key}/${g.id}/results`, { method: 'PUT', keepalive: true, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ results: msg.results, platforms: msg.platforms, rev: Date.now() * 1000 + (mine % 1000) }) })
@@ -669,6 +763,141 @@ function attachJob(jobId, key) {
     if (ev.type === 'error') { finish(); if (state.current === key) box.replaceChildren(h('div', { class: 'msg bad' }, ev.message)); }
   };
   es.onerror = () => { if (es.readyState === EventSource.CLOSED) finish(); };
+}
+
+// ---- Hata kaydı ---------------------------------------------------------------------------
+
+const readFile = (file) => new Promise((resolve, reject) => {
+  const r = new FileReader();
+  r.onload = () => resolve({ name: file.name || 'ekran.png', type: file.type, data: String(r.result).split(',')[1] || '' });
+  r.onerror = () => reject(new Error('Dosya okunamadı.'));
+  r.readAsDataURL(file);
+});
+
+function openBugSheet({ g, frame, c, platform, item, section }) {
+  const f = { platform: ['ios', 'android'].includes(platform) ? platform : 'both', happened: '', expected: item, steps: '', images: [] };
+  const bugCfg = state.config.bug || {};
+  let onPaste = null;
+  const done = () => { if (onPaste) document.removeEventListener('paste', onPaste); onPaste = null; };
+  $('#sheet').addEventListener('close', done, { once: true });
+
+  // 1. adım: bilgi toplama
+  const step1 = () => {
+    const seg = h('div', { class: 'seg' });
+    const paintSeg = () => seg.replaceChildren(...BUG_PL.map((p) => h('button', { type: 'button', class: f.platform === p.key ? 'active' : '', onclick: () => { f.platform = p.key; paintSeg(); paintShots(); } }, p.name)));
+    paintSeg();
+    const ta = (key, attrs) => { const t = h('textarea', { class: 'input', ...attrs, oninput: () => { f[key] = t.value; } }); t.value = f[key]; return t; };
+    const happened = ta('happened', { rows: '3', placeholder: 'Örn. Devam\'a basınca hiçbir mesaj çıkmıyor, buton aktif kalıyor', required: true });
+    const shots = h('div', { class: 'shots' });
+    const shotErr = h('div', {});
+    const addFiles = async (files) => {
+      for (const file of files) {
+        if (!/^image\/(png|jpeg|gif|webp)$/.test(file.type)) { shotErr.replaceChildren(h('div', { class: 'msg bad' }, 'Yalnızca PNG, JPEG, GIF ya da WebP eklenebilir.')); continue; }
+        if (f.images.length >= 10) break;
+        f.images.push(await readFile(file));
+      }
+      paintShots();
+    };
+    const fileInput = h('input', { type: 'file', accept: 'image/png,image/jpeg,image/gif,image/webp', multiple: true, hidden: true, onchange: () => addFiles([...fileInput.files]) });
+    const simBtn = (pl, label) => {
+      const btn = h('button', { class: 'btn plain sm', type: 'button', onclick: async () => {
+        btn.disabled = true; shotErr.replaceChildren();
+        try { f.images.push(await send('/api/screenshot', 'POST', { platform: pl })); paintShots(); }
+        catch (e) { shotErr.replaceChildren(h('div', { class: 'msg bad' }, e.message)); }
+        btn.disabled = false;
+      } }, label);
+      return btn;
+    };
+    function paintShots() {
+      const sims = f.platform === 'ios' ? [simBtn('ios', 'iOS simülatöründen al')] : f.platform === 'android' ? [simBtn('android', 'Android emülatöründen al')]
+        : [simBtn('ios', 'iOS simülatöründen al'), simBtn('android', 'Android emülatöründen al')];
+      shots.replaceChildren(
+        ...f.images.map((im, i) => h('figure', { class: 'shot' },
+          h('img', { src: `data:${im.type};base64,${im.data}`, alt: `Ekran görüntüsü ${i + 1}` }),
+          h('button', { type: 'button', class: 'x', 'aria-label': 'Görseli kaldır', onclick: () => { f.images.splice(i, 1); paintShots(); } }, '×'))),
+        h('div', { class: 'drop', ondragover: (e) => { e.preventDefault(); e.currentTarget.classList.add('over'); }, ondragleave: (e) => e.currentTarget.classList.remove('over'),
+          ondrop: (e) => { e.preventDefault(); e.currentTarget.classList.remove('over'); addFiles([...e.dataTransfer.files]); } },
+          h('span', {}, 'Görseli buraya sürükle ya da yapıştır (⌘V)'),
+          h('div', { class: 'drop-acts' }, h('button', { class: 'btn plain sm', type: 'button', onclick: () => fileInput.click() }, 'Dosya seç'), ...sims)));
+    }
+    paintShots();
+    done();
+    onPaste = (e) => { const files = [...(e.clipboardData?.files || [])]; if (files.length) { e.preventDefault(); addFiles(files); } };
+    document.addEventListener('paste', onPaste);
+
+    const err = h('div', {});
+    const next = h('button', { class: 'btn sm', type: 'button', onclick: async () => {
+      if (!f.happened.trim()) { err.replaceChildren(h('div', { class: 'msg bad' }, '"Ne oldu?" alanını doldur.')); happened.focus(); return; }
+      next.disabled = true; next.textContent = 'Taslak hazırlanıyor…'; err.replaceChildren();
+      try {
+        const dr = await send('/api/bugs/draft', 'POST', { storyKey: g.key, storyTitle: g.title, item: section ? `${section}: ${item}` : item, platform: f.platform, happened: f.happened, expected: f.expected, steps: f.steps });
+        step2(dr);
+      } catch (e) { err.replaceChildren(h('div', { class: 'msg bad' }, e.message)); next.disabled = false; next.textContent = 'Taslağı hazırla'; }
+    } }, 'Taslağı hazırla');
+    openSheet('Hata kaydı', h('div', { class: 'bugform' },
+      h('p', { class: 'bug-item' }, h('span', {}, section || 'Test maddesi'), item),
+      h('div', { class: 'row stack plain' }, h('span', { class: 'hint' }, 'Platform'), seg),
+      h('label', { class: 'f' }, 'Ne oldu?', happened),
+      h('label', { class: 'f' }, 'Ne bekleniyordu?', ta('expected', { rows: '2' })),
+      h('label', { class: 'f' }, 'Adımlar (isteğe bağlı, her satıra bir adım)', ta('steps', { rows: '3', placeholder: 'Şifremi unuttum ekranına gir\nE-posta alanına "abc" yaz\nDevam\'a bas' })),
+      h('div', { class: 'f' }, 'Ekran görüntüleri', shots, fileInput, shotErr),
+      h('p', { class: 'hint' }, 'Taslağı Claude araçsız, kısa bir çağrıyla yazar (birkaç saniye). Kayıt, önizlemeyi onaylamadan açılmaz.'),
+      err,
+    ), [h('button', { class: 'btn link sm', type: 'button', onclick: closeSheet }, 'Vazgeç'), next]);
+    setTimeout(() => happened.focus(), 50);
+  };
+
+  // 2. adım: önizleme ve onay
+  const step2 = (dr) => {
+    const title = h('input', { class: 'input', value: dr.summary, maxlength: '250' });
+    const desc = h('textarea', { class: 'input', rows: '10' });
+    desc.value = dr.description;
+    const pl = dr.platform;
+    const project = bugCfg.project || g.key.split('-')[0];
+    const assignee = bugCfg.assignees?.[pl]?.name;
+    const sprint = bugCfg.sprintBoard && bugCfg.sprintFor?.includes(pl);
+    const facts = h('dl', { class: 'facts' },
+      h('dt', {}, 'Proje'), h('dd', {}, `${project} · ${bugCfg.issueType || 'Bug'}`),
+      h('dt', {}, 'Atanan'), h('dd', {}, assignee || 'Atanmayacak'),
+      h('dt', {}, 'Bağ'), h('dd', {}, `${g.key} (${bugCfg.linkType || 'Relates'})`),
+      h('dt', {}, 'Sprint'), h('dd', {}, sprint ? 'Aktif sprinte alınacak' : 'Backlog'),
+      h('dt', {}, 'Görsel'), h('dd', {}, f.images.length ? `${f.images.length} ekran görüntüsü` : 'Yok'));
+    const err = h('div', {});
+    const back = h('button', { class: 'btn link sm', type: 'button', onclick: step1 }, 'Geri');
+    const copy = h('button', { class: 'btn plain sm', type: 'button', onclick: async () => {
+      try { await navigator.clipboard.writeText(`${title.value}\n\n${desc.value}`); copy.textContent = 'Kopyalandı'; } catch { copy.textContent = 'Kopyalanamadı'; }
+    } }, 'Metni kopyala');
+    const go = h('button', { class: 'btn sm', type: 'button', disabled: !state.config.jiraConfigured, onclick: async () => {
+      go.disabled = true; back.disabled = true; go.textContent = 'Açılıyor…'; err.replaceChildren();
+      try {
+        const r = await send('/api/bugs', 'POST', { storyKey: g.key, guideId: g.id, c, platform: pl, summary: title.value, description: desc.value, images: f.images });
+        frame.contentWindow?.postMessage({ qa: 'bug', c, key: r.key, url: r.url }, '*');
+        done();
+        openSheet(`${r.key} açıldı`, h('div', { class: 'bugform' },
+          h('div', { class: 'msg ok' }, h('a', { href: r.url, target: '_blank', rel: 'noopener' }, `${r.key} · ${title.value}`)),
+          r.sprint ? h('p', { class: 'hint' }, `Sprint: ${r.sprint}`) : null,
+          ...(r.warnings || []).map((w) => h('div', { class: 'msg warn' }, w)),
+          h('p', { class: 'hint' }, 'Kayıt maddenin yanında da görünür ve PDF\'e yansır.'),
+        ), [h('a', { class: 'btn plain sm', href: r.url, target: '_blank', rel: 'noopener' }, 'Jira\'da gör'), h('button', { class: 'btn sm', type: 'button', onclick: closeSheet }, 'Bitti')]);
+      } catch (e) {
+        err.replaceChildren(h('div', { class: 'msg bad' }, e.message));
+        go.disabled = false; back.disabled = false; go.textContent = 'Jira\'da aç';
+      }
+    } }, 'Jira\'da aç');
+    openSheet('Hata kaydı önizlemesi', h('div', { class: 'bugform' },
+      dr.viaClaude ? null : h('div', { class: 'msg warn' }, 'Claude\'a ulaşılamadı; taslak yazdıklarından düz olarak hazırlandı.'),
+      state.config.jiraConfigured ? null : h('div', { class: 'msg warn' }, 'Jira token\'ı girilmediği için kayıt açılamaz. Metni kopyalayıp elle açabilirsin.'),
+      h('label', { class: 'f' }, 'Başlık', title),
+      h('label', { class: 'f' }, 'Açıklama', desc),
+      f.images.length ? h('div', { class: 'shots' }, ...f.images.map((im, i) => h('figure', { class: 'shot' }, h('img', { src: `data:${im.type};base64,${im.data}`, alt: `Ekran görüntüsü ${i + 1}` })))) : null,
+      facts,
+      h('p', { class: 'hint' }, 'Proje, atanan ve sprint kuralı Ayarlar → Hata kaydı bölümünden gelir.'),
+      err,
+    ), [back, copy, go]);
+    setTimeout(() => title.focus(), 50);
+  };
+
+  step1();
 }
 
 // ---- Güncelleme ---------------------------------------------------------------------------
