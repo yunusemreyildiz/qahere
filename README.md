@@ -151,6 +151,14 @@ npm run doctor
 
 Aynı anda tek rehber üretilir; ikincisi için ilkinin bitmesini bekle ya da **İptal** et.
 
+### Güncelleme
+
+qaHere açılırken GitHub'da yeni sürüm olup olmadığına bakar. Varsa **Yeni sürüm var** penceresi neyin değiştiğini gösterir; **Güncelle**'ye basınca yeni sürüm indirilir ve qaHere kendini yeniden başlatır. Ayarların, rehberlerin ve işaretlerin olduğu gibi kalır. Elle denetlemek için: sağ üstte **Durum → Yeni sürümü denetle**.
+
+> Bu özellikten önce kurduysan bir kereliğine elle güncelle: qaHere'yi kapat (Ctrl+C), klasöründe `git pull` ve ardından `npm start` çalıştır. Sonraki güncellemeler uygulamanın içinden gelir.
+
+Uygulama içinden güncelleme yalnızca `git clone` ile kurulumda çalışır; qaHere'nin dosyalarını elle değiştirdiysen güncellemeyi `git pull` ile kendin yaparsın.
+
 ---
 
 ## Ayarlar
@@ -174,6 +182,7 @@ Aynı değerleri `.env` dosyasıyla da verebilirsin (bkz. `.env.example`); aray�
 | `PORT` | `4310` | Arayüz portu |
 | `CHROME_BIN` | otomatik | PDF için tarayıcı yolu (bulunamazsa) |
 | `CLAUDE_EXTRA_ALLOWED_TOOLS` | boş | Bağlantıların farklı adla kuruluysa ek okuma araçları |
+| `QAHERE_UPDATE_CHECK` | açık | `off` yazarsan yeni sürüm denetlenmez |
 
 **Maliyet:** qaHere ücretsizdir ve bir sunucuya bağlı değildir. Her rehber, onu üreten kişinin Claude hesabının kullanım hakkından düşer; ne kadar düşeceği işin büyüklüğüne ve modele bağlıdır.
 
@@ -227,6 +236,7 @@ Aynı değerleri `.env` dosyasıyla da verebilirsin (bkz. `.env.example`); aray�
 
 ```
 qahere/
+├── bin/qahere.js        Başlatıcı (güncellemeden sonra sunucuyu yeniden başlatır)
 ├── server.js            Express sunucusu, üretim işleri, arşiv, işaretler, PDF
 ├── lib/
 │   ├── config.js        Ayarlar (data/settings.json + .env yedeği)

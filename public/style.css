@@ -181,6 +181,10 @@ td a{white-space:nowrap;font:500 13px var(--mono)}
 .sheet-head{position:sticky;top:0;display:flex;align-items:center;justify-content:space-between;padding:12px 20px;background:var(--sheet);border-bottom:1px solid var(--rule);z-index:2}
 .sheet-head h2{font:600 20px/1.2 var(--display)}
 .sheet-body{padding:20px 20px 24px}
+.update > p{margin:0 0 16px;max-width:60ch}
+.changes{margin:6px 0 14px;padding-left:20px}
+.changes li{margin:4px 0}
+.update .msg{margin-top:12px}
 .group{background:var(--sheet);border:1px solid var(--rule);border-radius:var(--r);margin-bottom:22px;overflow:hidden}
 .group-title{font-size:13px;color:var(--ink);margin:0 0 7px 2px;font-weight:600}
 .group-foot{font-size:13px;color:var(--graphite);margin:-14px 2px 22px;line-height:1.5}

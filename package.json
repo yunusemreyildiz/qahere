@@ -8,12 +8,16 @@
     "node": ">=18"
   },
   "scripts": {
-    "start": "node server.js",
+    "start": "node bin/qahere.js",
     "doctor": "node server.js --doctor"
   },
   "dependencies": {
     "dotenv": "^17.2.3",
     "express": "^4.21.2"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yunusemreyildiz/qahere.git"
+  }
 }

@@ -130,9 +130,23 @@ function showStatus(extra) {
     catch (e) { btn.disabled = false; btn.textContent = e.message; }
   } }, 'Bağlantıları denetle');
   const on = SOURCES.filter((s) => state.config.sources[s.key]);
+  const upd = state.update;
+  const updBtn = h('button', { class: 'btn plain sm', type: 'button', onclick: async () => {
+    updBtn.disabled = true; updBtn.textContent = 'Denetleniyor…';
+    try {
+      state.update = await api('/api/update?force=1');
+      if (state.update.behind) showUpdate(state.update); else showStatus(extra);
+    } catch (e) { updBtn.disabled = false; updBtn.textContent = e.message; }
+  } }, 'Yeni sürümü denetle');
+  const updText = !upd ? '—' : !upd.git ? 'git ile kurulmadı; güncellemeyi elle yap' : upd.error ? upd.error
+    : upd.behind ? `${upd.version} · yeni sürüm var` : `${upd.version || '—'} · güncel`;
   openSheet('Durum', h('div', {},
     h('div', { class: 'group' },
-      statusRow('Claude Code', hl.claude), statusRow('Jira', hl.jira && { ...hl.jira, ok: hl.jira.ok }), statusRow('PDF', hl.pdf)),
+      statusRow('Claude Code', hl.claude), statusRow('Jira', hl.jira && { ...hl.jira, ok: hl.jira.ok }), statusRow('PDF', hl.pdf),
+      upd?.enabled === false ? null : h('div', { class: 'row' },
+        h('span', { class: `dot ${upd ? (upd.behind || upd.error ? 'bad' : 'ok') : ''}` }),
+        h('div', { class: 'grow' }, h('b', {}, 'qaHere sürümü')),
+        h('div', { class: 'val' }, updText), upd?.git === false ? null : updBtn)),
     h('div', { class: 'group-title' }, 'Kaynak bağlantıları'),
     h('div', { class: 'group' },
       ...(extra ? [...on.map((s) => statusRow(s.name, extra[s.key])), statusRow('Atlassian', extra.atlassian)]
@@ -653,6 +667,60 @@ function attachJob(jobId, key) {
   es.onerror = () => { if (es.readyState === EventSource.CLOSED) finish(); };
 }
 
+// ---- Güncelleme ---------------------------------------------------------------------------
+
+const UPDATE_LATER = 'qaHere.updateLater';
+const store = { get: (k) => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* yok say */ } } };
+
+async function checkForUpdate() {
+  try { state.update = await api('/api/update'); } catch { return; }
+  const u = state.update;
+  // "Sonra" denen sürüm bir daha sorulmaz; daha yeni bir commit gelince yeniden sorulur.
+  if (u.behind && u.commits?.[0]?.sha !== store.get(UPDATE_LATER) && !$('#sheet').open) showUpdate(u);
+}
+
+function showUpdate(u) {
+  const list = h('ul', { class: 'changes' }, ...(u.commits || []).slice(0, 8).map((c) => h('li', {}, c.subject)));
+  const more = (u.commits?.length || 0) > 8 ? h('p', { class: 'sub' }, `ve ${u.behind - 8} değişiklik daha`) : null;
+  const msg = h('div', {});
+  const go = h('button', { class: 'btn sm', type: 'button', disabled: Boolean(u.blocked), onclick: async () => {
+    go.disabled = true; later.disabled = true; go.textContent = 'İndiriliyor…';
+    try {
+      const r = await send('/api/update', 'POST');
+      if (r.restart === 'auto') {
+        go.textContent = 'Yeniden başlatılıyor…';
+        await waitForRestart(r.version);
+        location.reload();
+      } else {
+        go.textContent = 'İndirildi';
+        msg.replaceChildren(h('div', { class: 'msg ok' }, 'Yeni sürüm indirildi. Açmak için terminalde qaHere\'yi kapat (Ctrl+C) ve yeniden ', h('code', {}, 'npm start'), ' çalıştır. Bundan sonraki güncellemeler kendiliğinden yeniden başlar.'));
+      }
+    } catch (e) {
+      go.disabled = false; later.disabled = false; go.textContent = 'Güncelle';
+      msg.replaceChildren(h('div', { class: 'msg bad' }, e.message));
+    }
+  } }, 'Güncelle');
+  const later = h('button', { class: 'btn plain sm', type: 'button', onclick: () => { store.set(UPDATE_LATER, u.commits?.[0]?.sha || ''); closeSheet(); } }, 'Sonra');
+  openSheet('Yeni sürüm var', h('div', { class: 'update' },
+    h('p', {}, `qaHere'nin yeni bir sürümü yayımlandı (${u.behind} değişiklik). Güncelleme birkaç saniye sürer; ayarların, rehberlerin ve işaretlerin olduğu gibi kalır.`),
+    h('div', { class: 'group-title' }, 'Neler değişti'),
+    list, more,
+    u.blocked ? h('div', { class: 'msg bad' }, u.blocked) : null,
+    msg,
+  ), [later, go]);
+}
+
+async function waitForRestart(version) {
+  await new Promise((r) => setTimeout(r, 800));
+  for (let i = 0; i < 60; i += 1) {
+    try {
+      const u = await api('/api/update');
+      if (!version || u.version === version) return;
+    } catch { /* sunucu henüz açılmadı */ }
+    await new Promise((r) => setTimeout(r, 500));
+  }
+}
+
 // ---- Başlangıç --------------------------------------------------------------------------
 
 (async function init() {
@@ -662,6 +730,7 @@ function attachJob(jobId, key) {
   if (!state.config.setupDone) startOnboarding();
   loadHealth().then(() => { if (!state.current) showWelcome(); });
   await loadList();
+  if (state.config.setupDone) checkForUpdate();
   const key = (location.hash.slice(1).toUpperCase().match(/^[A-Z][A-Z0-9]+-\d+$/) || [])[0];
   if (key) openIssue(key);
 })();

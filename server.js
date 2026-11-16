@@ -11,6 +11,7 @@ import { getSettings, publicSettings, saveSettings } from './lib/config.js';
 import { generateGuide } from './lib/generate.js';
 import { saveGuide, listGuides, deleteGuide, guidePaths, dataDir, setChecks, guideHtml } from './lib/store.js';
 import { findBrowser, renderPdf } from './lib/pdf.js';
+import { checkUpdate, applyUpdate, RESTART_CODE } from './lib/update.js';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 4310;
@@ -130,6 +131,18 @@ function emit(job, ev) {
   job.events.push(e);
   for (const l of job.listeners) l(e);
 }
+
+// ---- Güncelleme ----------------------------------------------------------------
+
+app.get('/api/update', wrap(async (req, res) => res.json(await checkUpdate({ force: req.query.force === '1' }))));
+app.post('/api/update', wrap(async (_req, res) => {
+  if ([...jobs.values()].some((j) => j.status === 'running')) {
+    return res.status(409).json({ error: 'Şu anda bir rehber hazırlanıyor. Bitince ya da iptal edince güncelle.' });
+  }
+  const r = await applyUpdate();
+  res.json(r);
+  if (r.updated && r.restart === 'auto') setTimeout(() => process.exit(RESTART_CODE), 300);
+}));
 
 app.post('/api/guides', wrap(async (req, res) => {
   const key = parseIssueKey(req.body?.key);

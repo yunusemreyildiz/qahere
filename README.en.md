@@ -153,6 +153,14 @@ npm run doctor
 
 One guide is generated at a time; wait for the first to finish or **cancel** it.
 
+### Updating
+
+When qaHere opens, it checks GitHub for a new version. If there is one, a **Yeni sürüm var** (New version) window lists what changed; press **Güncelle** (Update) and qaHere downloads it and restarts itself. Your settings, guides and ticks stay as they are. To check by hand: top right, **Durum → Yeni sürümü denetle** (Status → Check for a new version).
+
+> If you installed qaHere before this feature, update by hand once: stop qaHere (Ctrl+C), run `git pull` in its folder, then `npm start`. Later updates come from inside the app.
+
+In-app updating only works for installs made with `git clone`. If you edited qaHere's files yourself, update with `git pull`.
+
 ---
 
 ## Settings
@@ -176,6 +184,7 @@ You can also provide the same values in a `.env` file (see `.env.example`); sett
 | `PORT` | `4310` | UI port |
 | `CHROME_BIN` | auto | Browser path for PDFs (if not found) |
 | `CLAUDE_EXTRA_ALLOWED_TOOLS` | empty | Extra read-only tools if your connectors use different names |
+| `QAHERE_UPDATE_CHECK` | on | Set to `off` to skip the new-version check |
 
 **Cost:** qaHere is free and doesn't depend on any server. Each guide counts against the Claude usage of the person who generates it; how much depends on the size of the issue and the model.
 
@@ -229,6 +238,7 @@ You can also provide the same values in a `.env` file (see `.env.example`); sett
 
 ```
 qahere/
+├── bin/qahere.js        Launcher (restarts the server after an update)
 ├── server.js            Express server, generation jobs, archive, ticks, PDF
 ├── lib/
 │   ├── config.js        Settings (data/settings.json, .env as fallback)
