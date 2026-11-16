@@ -116,7 +116,9 @@ html.live .bugref{font:600 12px/1 var(--mono);color:var(--bad);background:color-
 html.live .bugref:hover{text-decoration:underline}
 html.live .chk li[data-done] .bugs{text-decoration:none}
 html.live .o-bug{color:var(--bad);border-top:1px solid #eef0f2;border-radius:0 0 7px 7px;margin-top:3px}
-html.live .o-mock{color:var(--ink)}
+html.live .o-mock,html.live .o-run{color:var(--ink)}
+html.live .o-run{border-top:1px solid #eef0f2;border-radius:0;margin-top:3px}
+html.live .o-run .pmk{background:color-mix(in srgb,var(--ok) 14%,#fff);color:var(--ok);font-size:10px}
 html.live .o-mock .pmk{background:var(--brand-soft);color:var(--brand)}
 html.live .o-bug .pmk{background:color-mix(in srgb,var(--bad) 12%,#fff);color:var(--bad)}
 

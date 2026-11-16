@@ -54,6 +54,8 @@ Yaklaşık 5 dakika sürer. Sırayla git; her adımın sonunda neyi görmen gere
 | Claude Code | Rehberi yazar | `claude --version` |
 | Ücretli bir Claude hesabı | Claude Code'a giriş ve kaynak bağlantıları | – |
 | Chrome ya da Edge | PDF üretir (yoksa tarayıcıdan yazdırırsın) | – |
+| [Maestro](https://maestro.dev) + Xcode / Android SDK | İsteğe bağlı: maddeyi simülatörde koşturmak | `maestro --version` |
+| [Proxyman](https://proxyman.com) (macOS) | İsteğe bağlı: istek ve mock | – |
 
 Node yoksa <https://nodejs.org> adresinden LTS sürümünü kur.
 
@@ -172,6 +174,17 @@ Kayıt açılınca görseller eklenir, rehberin işiyle bağlanır, ayarlandıys
 
 Proje, kayıt türü (Bug, Defect…), başlık biçimi (ör. `{platform} - {konu} Bug`), platforma göre atanan kişi, sprint panosu ve ek alanlar **Ayarlar → Hata kaydı** bölümünden ayarlanır. Token yoksa taslak yine hazırlanır; **Metni kopyala** ile elle açabilirsin.
 
+### Simülatörde koşmak (Maestro)
+
+Maddenin platform menüsünden **iOS simülatöründe koş… / Android emülatöründe koş…**'u seç:
+
+1. İlk seferde **Claude yazsın**: Claude, rehberdeki otomasyon kimliklerinden ve akış adımlarından kısa bir Maestro akışı yazar (araçsız, ~10 sn). Maestro'nun sözdizimi denetiminden geçmezse bir kez düzelttirilir. Akış yalnızca maddenin sorduğunu doğrular; gönderme, onaylama gibi geri dönüşü olan adımlara basmaz.
+2. Akışı gör, `# kontrol et` ya da `# TODO` işaretli satırları düzelt (ör. o ekrana nasıl gelineceği). Akış madde ve platform başına saklanır.
+3. **Koş**: Maestro açık simülatörde/emülatörde çalışır, çıktısı canlı akar. Sonraki koşular Claude kullanmaz.
+4. **Geçti** ise madde o platform için kendiliğinden "geçti" işaretlenir. **Kaldı** ise hatanın özeti ve son ekran görüntüsü gelir; **Hata kaydı aç** pencereyi bunlarla doldurulmuş açar.
+
+**Ayarlar → Simülatörde koşu**'da iOS bundle id'yi, Android paket adını ve isteğe bağlı bir **ön akış** dosyasını (ör. giriş yapma, diyalog kapatma) gir. Ön akış `launchApp`'ten hemen sonra çalışır; `${APP_ID}` değişkeni girdiğin uygulama kimliğiyle doldurulur. Uygulamayı Claude keşfetmez; bu yüzden token harcaması akış başına bir kısa çağrıyla sınırlıdır.
+
 ### Proxyman: istek ve mock
 
 Proxyman açıkken (uygulamanın trafiği Proxyman'den geçiyor ve HTTPS için SSL Proxying açıkken):
@@ -216,6 +229,7 @@ Aynı değerleri `.env` dosyasıyla da verebilirsin (bkz. `.env.example`); aray�
 | `CHROME_BIN` | otomatik | PDF için tarayıcı yolu (bulunamazsa) |
 | `CLAUDE_EXTRA_ALLOWED_TOOLS` | boş | Bağlantıların farklı adla kuruluysa ek okuma araçları |
 | `PROXYMAN_MCP_BIN` | Proxyman'in macOS yolu | Proxyman MCP sunucusu başka yerdeyse |
+| `MAESTRO_BIN` | `~/.maestro/bin/maestro` | Maestro başka yerdeyse |
 | `QAHERE_UPDATE_CHECK` | açık | `off` yazarsan yeni sürüm denetlenmez |
 
 **Maliyet:** qaHere ücretsizdir ve bir sunucuya bağlı değildir. Her rehber, onu üreten kişinin Claude hesabının kullanım hakkından düşer; ne kadar düşeceği işin büyüklüğüne ve modele bağlıdır.
@@ -277,6 +291,10 @@ qahere/
 │   ├── config.js        Ayarlar (data/settings.json + .env yedeği)
 │   ├── jira.js          Jira REST istemcisi (yalnızca okuma)
 │   ├── generate.js      Claude Code'u arka planda çalıştırır, çıktıyı temizler
+│   ├── bug.js           Hata kaydı taslağı ve Jira'da açma
+│   ├── proxyman.js      Proxyman: istekler ve mock kuralları
+│   ├── runner.js        Maestro akışı yazdırma ve koşu
+│   ├── device.js        Simülatör/emülatör bulma, ekran görüntüsü
 │   ├── pdf.js           Chrome/Edge ile PDF
 │   └── store.js         Rehber arşivi ve kontrol işaretleri (data/guides)
 ├── prompts/rehber.md    Rehberin nasıl yazılacağını anlatan talimat

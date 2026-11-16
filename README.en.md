@@ -56,6 +56,8 @@ Takes about 5 minutes. Go step by step; each step tells you what you should see 
 | Claude Code | Writes the guide | `claude --version` |
 | A paid Claude account | Claude Code sign-in and source connectors | – |
 | Chrome or Edge | Creates PDFs (otherwise print from the browser) | – |
+| [Maestro](https://maestro.dev) + Xcode / Android SDK | Optional: run an item on a simulator | `maestro --version` |
+| [Proxyman](https://proxyman.com) (macOS) | Optional: requests and mocks | – |
 
 If you don't have Node, install the LTS version from <https://nodejs.org>.
 
@@ -174,6 +176,17 @@ The new issue gets the screenshots attached, is linked to the guide's issue and,
 
 Project, issue type (Bug, Defect…), title format (e.g. `{platform} - {konu} Bug`), assignee per platform, sprint board and extra fields are set under **Ayarlar → Hata kaydı** (Settings → Bug filing). Without a token you still get the draft; copy it with **Metni kopyala** and file it by hand.
 
+### Running on a simulator (Maestro)
+
+Pick **iOS simülatöründe koş… / Android emülatöründe koş…** (Run on the iOS simulator / Android emulator) from an item's platform menu:
+
+1. The first time, press **Claude yazsın** (Let Claude write it): Claude writes a short Maestro flow from the guide's automation IDs and flow steps (no tools, ~10 s). If it fails Maestro's syntax check, Claude fixes it once. The flow only checks what the item asks; it never taps irreversible actions such as send or confirm.
+2. Review the flow and fix lines marked `# kontrol et` (check this) or `# TODO`, e.g. how to reach that screen. Flows are saved per item and platform.
+3. **Koş** (Run): Maestro runs on the open simulator/emulator and its output streams live. Later runs don't use Claude.
+4. On a pass, the item is marked passed for that platform. On a fail you get the failure summary and the last screenshot; **Hata kaydı aç** (File a bug) opens the bug window pre-filled with them.
+
+Under **Ayarlar → Simülatörde koşu** (Settings → Simulator runs), enter the iOS bundle id, the Android package name and an optional **setup flow** (e.g. log in, dismiss dialogs). The setup flow runs right after `launchApp`; `${APP_ID}` is filled with your app id. Claude never explores the app, so token use is limited to one short call per flow.
+
 ### Proxyman: requests and mocks
 
 With Proxyman running (your app's traffic going through it, and SSL Proxying on for HTTPS):
@@ -218,6 +231,7 @@ You can also provide the same values in a `.env` file (see `.env.example`); sett
 | `CHROME_BIN` | auto | Browser path for PDFs (if not found) |
 | `CLAUDE_EXTRA_ALLOWED_TOOLS` | empty | Extra read-only tools if your connectors use different names |
 | `PROXYMAN_MCP_BIN` | Proxyman's macOS path | If Proxyman's MCP server lives elsewhere |
+| `MAESTRO_BIN` | `~/.maestro/bin/maestro` | If Maestro lives elsewhere |
 | `QAHERE_UPDATE_CHECK` | on | Set to `off` to skip the new-version check |
 
 **Cost:** qaHere is free and doesn't depend on any server. Each guide counts against the Claude usage of the person who generates it; how much depends on the size of the issue and the model.
@@ -279,6 +293,10 @@ qahere/
 │   ├── config.js        Settings (data/settings.json, .env as fallback)
 │   ├── jira.js          Jira REST client (read-only)
 │   ├── generate.js      Runs Claude Code in the background, cleans the output
+│   ├── bug.js           Bug drafts and filing in Jira
+│   ├── proxyman.js      Proxyman: requests and mock rules
+│   ├── runner.js        Writing and running Maestro flows
+│   ├── device.js        Finding simulators/emulators, screenshots
 │   ├── pdf.js           PDF via Chrome/Edge
 │   └── store.js         Guide archive and checklist ticks (data/guides)
 ├── prompts/rehber.md    Instructions for how the guide is written

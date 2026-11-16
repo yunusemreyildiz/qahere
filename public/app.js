@@ -162,11 +162,11 @@ $('#statusBtn').addEventListener('click', () => showStatus());
 function draftFrom(cfg) {
   return { workspace: cfg.workspace, jiraBaseUrl: cfg.jiraBaseUrl, jiraEmail: cfg.jiraEmail, jiraApiToken: '', hasToken: cfg.hasToken,
     projects: [...cfg.projects], sources: { ...cfg.sources }, model: cfg.model, accent: cfg.accent,
-    bug: JSON.parse(JSON.stringify(cfg.bug || {})) };
+    bug: JSON.parse(JSON.stringify(cfg.bug || {})), run: JSON.parse(JSON.stringify(cfg.run || { ios: {}, android: {} })) };
 }
 
 async function saveDraft(d, extra = {}) {
-  const body = { workspace: d.workspace, jiraBaseUrl: d.jiraBaseUrl, jiraEmail: d.jiraEmail, projects: d.projects, sources: d.sources, model: d.model, accent: d.accent, bug: d.bug, ...extra };
+  const body = { workspace: d.workspace, jiraBaseUrl: d.jiraBaseUrl, jiraEmail: d.jiraEmail, projects: d.projects, sources: d.sources, model: d.model, accent: d.accent, bug: d.bug, run: d.run, ...extra };
   if (d.jiraApiToken) body.jiraApiToken = d.jiraApiToken;
   applyConfig(await send('/api/settings', 'PUT', body));
 }
@@ -351,6 +351,25 @@ function bugSection(d) {
   );
 }
 
+function runSection(d) {
+  const r = d.run;
+  const devs = h('span', {}, 'Cihazlara bakılıyor…');
+  api('/api/devices').then((x) => { devs.textContent = `iOS: ${x.ios?.name || 'açık simülatör yok'} · Android: ${x.android?.name || 'bağlı cihaz yok'}`; }).catch(() => { devs.textContent = 'Cihazlara bakılamadı.'; });
+  const field = (pl, key, label, ph) => {
+    const i = h('input', { class: 'bare', placeholder: ph, value: r[pl]?.[key] || '', spellcheck: 'false', autocomplete: 'off', oninput: () => { r[pl] = { ...r[pl], [key]: i.value.trim() }; } });
+    return h('label', { class: 'row' }, h('span', { class: 'lab' }, label), h('div', { class: 'grow' }, i));
+  };
+  return h('div', {},
+    h('div', { class: 'group' },
+      field('ios', 'appId', 'iOS bundle id', 'com.sirketin.uygulama'),
+      field('ios', 'setupFlow', 'iOS ön akış', '/yol/giris-ios.yaml (isteğe bağlı)'),
+      field('android', 'appId', 'Android paket', 'com.sirketin.uygulama'),
+      field('android', 'setupFlow', 'Android ön akış', '/yol/giris-android.yaml (isteğe bağlı)'),
+      h('div', { class: 'row' }, h('div', { class: 'grow' }, h('b', {}, 'Cihazlar'), devs))),
+    h('div', { class: 'group-foot' }, 'Maddenin platform menüsündeki "simülatöründe koş" Maestro ile çalışır. Ön akış (ör. giriş yapma) varsa her akıştan önce çalışır; uygulamayı da o açar. Akışı ilk seferde Claude araçsız yazar, sonraki koşular Claude kullanmaz.'),
+  );
+}
+
 function openSettings() {
   const d = draftFrom(state.config);
   const before = state.config.accent;
@@ -365,6 +384,7 @@ function openSettings() {
     h('div', { class: 'group-title' }, 'Jira'), jiraSection(d),
     h('div', { class: 'group-title' }, 'Kaynaklar'), sourcesSection(d),
     h('div', { class: 'group-title' }, 'Hata kaydı'), bugSection(d),
+    h('div', { class: 'group-title' }, 'Simülatörde koşu'), runSection(d),
     h('div', { class: 'group-title' }, 'Görünüm'), lookSection(d),
     h('div', { class: 'group' }, h('div', { class: 'row' }, h('div', { class: 'grow' }, h('b', {}, 'Kurulum adımları'), h('span', {}, 'İlk açılıştaki adımları yeniden göster.')),
       h('button', { class: 'btn plain sm', type: 'button', onclick: () => { closeSheet(); startOnboarding(); } }, 'Aç'))),
@@ -614,6 +634,9 @@ function renderGuides(key, guides, selectedId) {
   state.onChecks = (e) => {
     if (e.source !== frame.contentWindow) return;
     const msg = e.data || {};
+    if (msg.qa === 'run' && Number.isInteger(msg.c) && ['ios', 'android'].includes(msg.platform)) {
+      return openRunSheet({ g, frame, c: msg.c, platform: msg.platform, item: String(msg.text || '').slice(0, 1500), section: String(msg.section || '').slice(0, 200) });
+    }
     if (msg.qa === 'mock' && Number.isInteger(msg.c)) {
       return openMockSheet({ g, c: msg.c, item: String(msg.text || '').slice(0, 1500), onChange: paintMocks });
     }
@@ -788,8 +811,8 @@ const readFile = (file) => new Promise((resolve, reject) => {
   r.readAsDataURL(file);
 });
 
-function openBugSheet({ g, frame, c, platform, item, section }) {
-  const f = { platform: ['ios', 'android'].includes(platform) ? platform : 'both', happened: '', expected: item, steps: '', images: [], flows: [] };
+function openBugSheet({ g, frame, c, platform, item, section, preset = {} }) {
+  const f = { platform: ['ios', 'android'].includes(platform) ? platform : 'both', happened: preset.happened || '', expected: item, steps: preset.steps || '', images: preset.images || [], flows: [] };
   const bugCfg = state.config.bug || {};
   let onPaste = null;
   const done = () => { if (onPaste) document.removeEventListener('paste', onPaste); onPaste = null; };
@@ -1041,6 +1064,93 @@ function openMockSheet({ g, c, item, onChange }) {
     h('div', { class: 'group-title' }, 'Bu rehberdeki mocklar'),
     listBox,
   ), [h('button', { class: 'btn link sm', type: 'button', onclick: closeSheet }, 'Kapat'), create]);
+}
+
+// ---- Simülatörde koşu ----------------------------------------------------------------------
+
+function openRunSheet({ g, frame, c, platform, item, section }) {
+  const PLN = platform === 'ios' ? 'iOS' : 'Android';
+  const q = `key=${encodeURIComponent(g.key)}&guideId=${encodeURIComponent(g.id)}&c=${c}&platform=${platform}`;
+  const ids = { key: g.key, guideId: g.id, c, platform };
+  const yaml = h('textarea', { class: 'input mono', rows: '14', spellcheck: 'false', placeholder: 'appId: com.sirketin.uygulama\n---\n- launchApp\n- tapOn:\n    id: "…"\n- assertVisible: "…"' });
+  let saved = '';
+  const dev = h('span', { class: 'hint' }, 'Cihaza bakılıyor…');
+  api('/api/devices').then((x) => { dev.textContent = x[platform] ? `Cihaz: ${x[platform].name}` : (platform === 'ios' ? 'Açık iOS simülatörü yok.' : 'Bağlı Android cihaz yok.'); }).catch(() => {});
+  const note = h('div', {});
+  const out = h('div', {});
+  const setNote = (cls, text) => note.replaceChildren(...(text ? [h('div', { class: `msg ${cls}` }, text)] : []));
+
+  const write = h('button', { class: 'btn plain sm', type: 'button', onclick: async () => {
+    if (yaml.value.trim() && !confirm('Mevcut akış Claude\'un yazacağıyla değiştirilsin mi?')) return;
+    write.disabled = true; write.textContent = 'Yazılıyor…'; setNote();
+    try {
+      const r = await send('/api/flows/draft', 'POST', { ...ids, item, section });
+      yaml.value = r.yaml; saved = r.yaml;
+      setNote(r.syntaxError ? 'warn' : 'ok', r.syntaxError ? `Akış kaydedildi ama Maestro sözdizimi uyarısı verdi:\n${r.syntaxError}` : 'Akış yazıldı. "# kontrol et" işaretli satırlara bak, sonra koş.');
+    } catch (e) { setNote('bad', e.message); }
+    write.disabled = false; write.textContent = 'Claude yazsın';
+  } }, 'Claude yazsın');
+
+  const save = async () => {
+    if (yaml.value === saved) return true;
+    try {
+      const r = await send('/api/flows', 'PUT', { ...ids, yaml: yaml.value });
+      saved = yaml.value;
+      if (r.syntaxError) { setNote('warn', `Maestro sözdizimi uyarısı:\n${r.syntaxError}`); return false; }
+      return true;
+    } catch (e) { setNote('bad', e.message); return false; }
+  };
+
+  const runBtn = h('button', { class: 'btn sm', type: 'button', onclick: async () => {
+    setNote(); out.replaceChildren();
+    if (!yaml.value.trim()) return setNote('bad', 'Önce akışı yazdır ya da yaz.');
+    if (!(await save()) && !confirm('Sözdizimi uyarısına rağmen koşulsun mu?')) return;
+    runBtn.disabled = true; write.disabled = true; runBtn.textContent = 'Koşuyor…';
+    let job;
+    try { job = await send('/api/runs', 'POST', ids); } catch (e) { setNote('bad', e.message); runBtn.disabled = false; write.disabled = false; runBtn.textContent = 'Koş'; return; }
+    const log = h('pre', { class: 'runlog' });
+    const stop = h('button', { class: 'btn plain sm', type: 'button', onclick: () => send(`/api/runs/${job.id}/cancel`, 'POST').catch(() => {}) }, 'Durdur');
+    out.replaceChildren(h('div', { class: 'runhead' }, h('span', { class: 'spinner' }), h('b', {}, `${PLN} üzerinde koşuyor`), stop), log);
+    let from = 0;
+    while (true) {
+      await new Promise((r) => setTimeout(r, 1000));
+      try { job = await api(`/api/runs/${job.id}?from=${from}`); } catch { continue; }
+      from = job.logTotal;
+      if (job.log.length) { log.textContent += `${job.log.join('\n')}\n`; log.scrollTop = log.scrollHeight; }
+      if (job.status !== 'running') break;
+    }
+    runBtn.disabled = false; write.disabled = false; runBtn.textContent = 'Yeniden koş';
+    const secs = Math.round((job.endedAt - job.startedAt) / 1000);
+    if (job.status === 'pass') {
+      frame.contentWindow?.postMessage({ qa: 'set', c, platform, value: 'pass' }, '*');
+      out.replaceChildren(h('div', { class: 'msg ok' }, `Geçti (${secs} sn). Madde ${PLN} için "geçti" olarak işaretlendi.`), log);
+    } else if (job.status === 'fail') {
+      frame.contentWindow?.postMessage({ qa: 'set', c, platform, value: 'fail' }, '*');
+      const bugBtn = h('button', { class: 'btn sm', type: 'button', onclick: () => openBugSheet({ g, frame, c, platform, item, section,
+        preset: { happened: `Otomasyon koşusunda (Maestro, ${PLN}) adım başarısız oldu:\n${job.message}`, images: job.image ? [job.image] : [] } }) }, 'Hata kaydı aç');
+      out.replaceChildren(
+        h('div', { class: 'msg bad' }, h('b', {}, `Kaldı (${secs} sn).`), h('pre', { class: 'runmsg' }, job.message)),
+        job.image ? h('figure', { class: 'shot big' }, h('img', { src: `data:${job.image.type};base64,${job.image.data}`, alt: 'Koşu bittiğindeki ekran' })) : null,
+        h('div', { class: 'runacts' }, bugBtn, h('span', { class: 'hint' }, 'Akış hatalıysa (yanlış kimlik gibi) yukarıda düzeltip yeniden koş; madde işaretini de elle değiştirebilirsin.')),
+        log);
+    } else {
+      out.replaceChildren(h('div', { class: 'msg warn' }, job.message || 'Koşu tamamlanamadı.'), log);
+    }
+  } }, 'Koş');
+
+  openSheet(platform === 'ios' ? 'iOS simülatöründe koş' : 'Android emülatöründe koş', h('div', { class: 'bugform' },
+    h('p', { class: 'bug-item run' }, h('span', {}, section || 'Test maddesi'), item),
+    h('div', { class: 'between' }, h('div', { class: 'grow' }, dev), write),
+    h('label', { class: 'f' }, 'Maestro akışı', yaml),
+    h('p', { class: 'hint' }, 'Akış bu madde ve platform için saklanır; sonraki koşular Claude kullanmaz. Uygulama kimliği ve ön akış Ayarlar → Simülatörde koşu bölümünden gelir.'),
+    note, out,
+  ), [h('button', { class: 'btn link sm', type: 'button', onclick: closeSheet }, 'Kapat'), runBtn]);
+
+  api(`/api/flows?${q}`).then((r) => {
+    yaml.value = r.yaml || ''; saved = yaml.value;
+    if (!r.yaml) setNote('', state.config.run?.[platform]?.appId ? 'Bu madde için henüz akış yok. "Claude yazsın" rehberdeki otomasyon kimliklerinden kısa bir akış yazar; ya da kendin yaz.'
+      : `Önce Ayarlar → Simülatörde koşu bölümünde ${platform === 'ios' ? 'iOS bundle id' : 'Android paket adı'} gir.`);
+  }).catch((e) => setNote('bad', e.message));
 }
 
 // ---- Güncelleme ---------------------------------------------------------------------------

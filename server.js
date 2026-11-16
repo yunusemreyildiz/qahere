@@ -5,7 +5,6 @@ import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { jiraConfigured, jiraBaseUrl, listEpics, searchIssues, getIssueTree, parseIssueKey, testConnection, listIssueTypes, listLinkTypes, searchUsers } from './lib/jira.js';
 import { draftBug, fileBug, draftMockBody } from './lib/bug.js';
@@ -15,6 +14,8 @@ import { generateGuide } from './lib/generate.js';
 import { saveGuide, listGuides, deleteGuide, guidePaths, dataDir, setResults, guideHtml, addBug, updateMeta } from './lib/store.js';
 import { findBrowser, renderPdf } from './lib/pdf.js';
 import { checkUpdate, applyUpdate, RESTART_CODE } from './lib/update.js';
+import { screenshot, devices } from './lib/device.js';
+import { readFlow, saveFlow, draftFlow, startRun, getRun, publicRun, cancelRun, activeRun } from './lib/runner.js';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 4310;
@@ -143,8 +144,8 @@ function emit(job, ev) {
 
 app.get('/api/update', wrap(async (req, res) => res.json(await checkUpdate({ force: req.query.force === '1' }))));
 app.post('/api/update', wrap(async (_req, res) => {
-  if ([...jobs.values()].some((j) => j.status === 'running')) {
-    return res.status(409).json({ error: 'Şu anda bir rehber hazırlanıyor. Bitince ya da iptal edince güncelle.' });
+  if ([...jobs.values()].some((j) => j.status === 'running') || activeRun()) {
+    return res.status(409).json({ error: 'Şu anda bir rehber hazırlanıyor ya da test koşuyor. Bitince ya da durdurunca güncelle.' });
   }
   const r = await applyUpdate();
   res.json(r);
@@ -297,24 +298,26 @@ app.delete('/api/proxyman/mocks/:rid', wrap(async (req, res) => {
   res.json({ mocks: rec.mocks });
 }));
 
-// Açık simülatörden ya da emülatörden ekran görüntüsü (yerel komutlar; dışarıya bir şey gitmez).
-app.post('/api/screenshot', wrap(async (req, res) => {
-  const platform = req.body?.platform;
-  const tmp = path.join(os.tmpdir(), `qahere-shot-${crypto.randomUUID()}.png`);
-  try {
-    if (platform === 'ios') {
-      const r = await run('xcrun', ['simctl', 'io', 'booted', 'screenshot', '--type=png', tmp], 20_000);
-      if (!r.ok) return res.status(400).json({ error: 'Açık bir iOS simülatörü bulunamadı.' });
-    } else if (platform === 'android') {
-      const r = await new Promise((resolve) => execFile('adb', ['exec-out', 'screencap', '-p'], { encoding: 'buffer', maxBuffer: 50 * 1024 * 1024, timeout: 20_000 },
-        (err, stdout) => resolve({ ok: !err && stdout?.length > 100, data: stdout })));
-      if (!r.ok) return res.status(400).json({ error: 'Bağlı bir Android emülatörü ya da cihazı bulunamadı.' });
-      await fsp.writeFile(tmp, r.data);
-    } else return res.status(400).json({ error: 'Platform ios ya da android olmalı.' });
-    const data = await fsp.readFile(tmp);
-    res.json({ name: `${platform}-ekran.png`, type: 'image/png', data: data.toString('base64') });
-  } finally { fsp.rm(tmp, { force: true }).catch(() => {}); }
+// ---- Simülatörde koşu (Maestro) ------------------------------------------------------------
+
+app.get('/api/devices', wrap(async (_req, res) => res.json(await devices())));
+const flowArgs = (o) => { const g = guideOf(o); return { key: g.key, id: g.id, c: Number(o.c), platform: o.platform }; };
+app.get('/api/flows', wrap(async (req, res) => { const a = flowArgs(req.query); res.json({ yaml: await readFlow(a.key, a.id, a.c, a.platform) }); }));
+app.put('/api/flows', wrap(async (req, res) => { const a = flowArgs(req.body); res.json(await saveFlow(a.key, a.id, a.c, a.platform, req.body.yaml)); }));
+app.post('/api/flows/draft', wrap(async (req, res) => {
+  const a = flowArgs(req.body);
+  res.json(await draftFlow({ ...a, item: req.body.item, section: req.body.section }));
 }));
+app.post('/api/runs', wrap(async (req, res) => res.json(await startRun(flowArgs(req.body)))));
+app.get('/api/runs/:id', (req, res) => {
+  const job = getRun(req.params.id);
+  if (!job) return res.status(404).json({ error: 'Koşu bulunamadı.' });
+  res.json(publicRun(job, { from: Number(req.query.from) || 0 }));
+});
+app.post('/api/runs/:id/cancel', (req, res) => res.json({ ok: cancelRun(req.params.id) }));
+
+// Açık simülatörden ya da emülatörden ekran görüntüsü (yerel komutlar; dışarıya bir şey gitmez).
+app.post('/api/screenshot', wrap(async (req, res) => res.json(await screenshot(req.body?.platform))));
 
 app.get('/guides/:key/:id.html', wrap(async (req, res) => {
   const p = guidePaths(req.params.key, req.params.id);

@@ -235,6 +235,15 @@ div.f{display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--grap
 .mocks{display:flex;flex-direction:column;background:var(--sheet);border:1px solid var(--rule);border-radius:var(--r)}
 .mocks > .hint{padding:12px 14px;margin:0}
 .mockbtn.on{border-color:var(--warn);color:var(--warn)}
+.bug-item.run{border-left-color:var(--ok)}
+.runhead{display:flex;align-items:center;gap:10px}
+.runhead .btn{margin-left:auto}
+.runlog{margin:8px 0 0;max-height:220px;overflow:auto;background:var(--well);border:1px solid var(--rule);border-radius:var(--r-sm);padding:10px 12px;font:12px/1.5 var(--mono);white-space:pre-wrap;color:var(--graphite)}
+.runlog:empty{display:none}
+.runmsg{margin:6px 0 0;white-space:pre-wrap;font:12.5px/1.5 var(--mono)}
+.runacts{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:10px}
+.shot.big{width:180px;height:auto;max-height:380px;margin-top:10px}
+.shot.big img{height:auto}
 .changes{margin:6px 0 14px;padding-left:20px}
 .changes li{margin:4px 0}
 .update .msg{margin-top:12px}
@@ -335,3 +344,4 @@ select.ver{font-family:var(--sans);font-size:13px;padding:6px 28px 6px 10px}
   .row > .lab{width:104px} .ws{display:none}
   .main.gmode{overflow:visible} .gview{padding:10px 10px 16px} .gview .viewer{min-height:80vh} .gtop{padding:12px 12px 0}
 }
+.bugform .msg{white-space:pre-line}

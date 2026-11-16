@@ -333,20 +333,22 @@
     menu.replaceChildren(make('div', 'pmh', PL[p].label));
     const opts = [['pass', 'Geçti'], ['fail', 'Kaldı'], ['na', 'Bu platformda uygulanmaz']];
     if (cur) opts.push(['', 'İşareti kaldır']);
+    opts.push(['run', p === 'ios' ? 'iOS simülatöründe koş…' : 'Android emülatöründe koş…']);
     if (cur === 'fail') opts.push(['bug', 'Hata kaydı aç']);
     opts.push(['mock', 'Mock ile test et…']);
     for (const [v, label] of opts) {
       const o = make('button', `pmi ${v ? `o-${v}` : 'o-clear'}`);
       o.type = 'button';
-      const isState = v && v !== 'bug' && v !== 'mock';
+      const isState = v && !['bug', 'mock', 'run'].includes(v);
       o.setAttribute('role', isState ? 'menuitemradio' : 'menuitem');
       if (isState) o.setAttribute('aria-checked', String(cur === v));
-      o.append(make('span', 'pmk', MARK[v] || (v === 'bug' ? '+' : v === 'mock' ? '⇄' : '')), label);
+      o.append(make('span', 'pmk', MARK[v] || ({ bug: '+', mock: '⇄', run: '▶' }[v] || '')), label);
       o.addEventListener('click', (e) => {
         e.stopPropagation();
         closeMenu(true);
         if (v === 'bug') return askBug(li, p);
         if (v === 'mock') return parent.postMessage({ qa: 'mock', c: Number(li.dataset.c), text: textOf(li) }, '*');
+        if (v === 'run') return parent.postMessage({ qa: 'run', c: Number(li.dataset.c), platform: p, text: textOf(li), section: sectionOf(li) }, '*');
         set(li, p, v || null);
         update(li);
         if (v === 'fail') askBug(li, p);
@@ -390,6 +392,15 @@
     li.classList.add('flash');
   });
   // Uygulama, açılan hata kaydını bildirir: maddeye bağlantısı eklenir.
+  // Uygulama, simülatör koşusunun sonucunu işler.
+  addEventListener('message', (e) => {
+    if (e.source !== parent || e.data?.qa !== 'set') return;
+    const { c, platform: p, value } = e.data;
+    const li = items.find((x) => Number(x.dataset.c) === c);
+    if (!li || !ALL.includes(p) || !['pass', 'fail', 'na', null].includes(value)) return;
+    set(li, p, value);
+    update(li);
+  });
   addEventListener('message', (e) => {
     if (e.source !== parent || e.data?.qa !== 'bug') return;
     const { c, key, url } = e.data;
