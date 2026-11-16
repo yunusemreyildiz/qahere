@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>QA Rehber</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="bar">
+    <div class="brand">
+      <span class="mark" aria-hidden="true"></span>
+      <span class="name">QA Rehber</span>
+      <span class="ws" id="ws"></span>
+    </div>
+    <div class="bar-actions">
+      <button class="status" id="statusBtn" type="button"><span class="dot"></span><span id="statusText">Denetleniyor</span></button>
+      <button class="iconbtn" id="settingsBtn" type="button" aria-label="Ayarlar" title="Ayarlar">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 13.5a7.6 7.6 0 0 0 0-3l2-1.5-2-3.4-2.3.9a7.6 7.6 0 0 0-2.6-1.5L14 2.5h-4l-.5 2.5a7.6 7.6 0 0 0-2.6 1.5l-2.3-.9-2 3.4 2 1.5a7.6 7.6 0 0 0 0 3l-2 1.5 2 3.4 2.3-.9a7.6 7.6 0 0 0 2.6 1.5l.5 2.5h4l.5-2.5a7.6 7.6 0 0 0 2.6-1.5l2.3.9 2-3.4z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside class="side">
+      <form id="searchForm" class="search" role="search">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="q" type="search" placeholder="Anahtar, Jira linki ya da başlık" autocomplete="off" aria-label="Jira'da ara">
+      </form>
+      <div class="side-controls">
+        <div class="seg" role="tablist">
+          <button class="tab active" data-tab="epics" role="tab" type="button">Epic'ler</button>
+          <button class="tab" data-tab="archive" role="tab" type="button">Rehberlerim</button>
+        </div>
+        <select id="project" aria-label="Jira projesi"></select>
+      </div>
+      <div id="list" class="list"></div>
+    </aside>
+    <main class="main" id="main"></main>
+  </div>
+
+  <dialog id="sheet" class="sheet"><div id="sheetBody"></div></dialog>
+  <div id="onboard" class="onboard" hidden></div>
+
+  <script src="app.js" type="module"></script>
+</body>
+</html>

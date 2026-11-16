@@ -1,0 +1,19 @@
+{
+  "name": "qahere",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Jira işlerinden, ilgili yazışma ve dokümanları da okuyarak QA rehberi (HTML + PDF) üreten yerel araç",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "doctor": "node server.js --doctor"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "express": "^4.21.2"
+  },
+  "license": "MIT"
+}
