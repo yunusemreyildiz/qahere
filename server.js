@@ -8,10 +8,11 @@ import crypto from 'node:crypto';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { jiraConfigured, jiraBaseUrl, listEpics, searchIssues, getIssueTree, parseIssueKey, testConnection, listIssueTypes, listLinkTypes, searchUsers } from './lib/jira.js';
-import { draftBug, fileBug } from './lib/bug.js';
+import { draftBug, fileBug, draftMockBody } from './lib/bug.js';
+import { proxymanStatus, listFlows, flowText, createMock, createMockFromFlow, setMockEnabled, deleteMock } from './lib/proxyman.js';
 import { getSettings, publicSettings, saveSettings } from './lib/config.js';
 import { generateGuide } from './lib/generate.js';
-import { saveGuide, listGuides, deleteGuide, guidePaths, dataDir, setResults, guideHtml, addBug } from './lib/store.js';
+import { saveGuide, listGuides, deleteGuide, guidePaths, dataDir, setResults, guideHtml, addBug, updateMeta } from './lib/store.js';
 import { findBrowser, renderPdf } from './lib/pdf.js';
 import { checkUpdate, applyUpdate, RESTART_CODE } from './lib/update.js';
 
@@ -57,6 +58,7 @@ async function connectorHealth() {
     atlassian: find(/atlassian(?! rovo)|jira/i),
     confluence: find(/atlassian(?! rovo)|confluence/i),
     docs: find(/claude docs/i),
+    proxyman: find(/proxyman/i),
   };
 }
 
@@ -243,12 +245,56 @@ app.post('/api/bugs', wrap(async (req, res) => {
   if (!jiraConfigured()) return res.status(400).json({ error: 'Hata kaydı açmak için Ayarlar\'dan Jira token\'ını gir.' });
   const b = req.body || {};
   const storyKey = parseIssueKey(b.storyKey);
-  const bug = await fileBug({ storyKey, platform: b.platform, summary: b.summary, description: b.description, images: Array.isArray(b.images) ? b.images : [] });
+  const bug = await fileBug({ storyKey, platform: b.platform, summary: b.summary, description: b.description, images: Array.isArray(b.images) ? b.images : [], flows: Array.isArray(b.flows) ? b.flows : [] });
   if (storyKey && b.guideId != null && b.c != null) {
     const p = guidePaths(storyKey, String(b.guideId));
     if (fs.existsSync(p.meta)) await addBug(storyKey, String(b.guideId), b.c, bug).catch(() => {});
   }
   res.json(bug);
+}));
+
+// ---- Proxyman (qaHere doğrudan konuşur; Claude'a araç verilmez) -------------------------
+
+app.get('/api/proxyman/status', wrap(async (_req, res) => res.json(await proxymanStatus())));
+app.get('/api/proxyman/flows', wrap(async (req, res) => res.json({ flows: await listFlows({ q: req.query.q, limit: req.query.limit }) })));
+app.get('/api/proxyman/flows/:id', wrap(async (req, res) => res.json({ text: await flowText(req.params.id) })));
+app.post('/api/proxyman/mock-draft', wrap(async (req, res) => res.json(await draftMockBody(req.body || {}))));
+
+const guideOf = (b) => {
+  const key = parseIssueKey(b?.key);
+  const id = String(b?.guideId || '');
+  if (!key || !id || !fs.existsSync(guidePaths(key, id).meta)) throw Object.assign(new Error('Rehber bulunamadı.'), { status: 404 });
+  return { key, id };
+};
+
+// Maddeye mock kurar: yakalanan yanıttan ya da verilen gövdeden. Kural rehberde kayıtlı tutulur ki kapatılabilsin.
+app.post('/api/proxyman/mocks', wrap(async (req, res) => {
+  const b = req.body || {};
+  const { key, id } = guideOf(b);
+  const c = Number(b.c);
+  const name = `qaHere · ${key}${Number.isInteger(c) ? ` · madde ${c + 1}` : ''}`;
+  const rule = b.from === 'flow'
+    ? { ...(await createMockFromFlow({ name, flowId: b.flowId })), url: String(b.url || '').slice(0, 2000), method: b.method || 'ANY', status: null }
+    : await createMock({ name, url: b.url, method: b.method, status: b.status, body: b.body });
+  const mock = { id: rule.id, c: Number.isInteger(c) ? c : null, name, url: rule.url, method: rule.method, status: rule.status, enabled: true, at: new Date().toISOString() };
+  const rec = await updateMeta(key, id, (r) => { r.mocks = [...(Array.isArray(r.mocks) ? r.mocks : []), mock]; });
+  res.json({ mock, mocks: rec.mocks });
+}));
+
+app.put('/api/proxyman/mocks/:rid', wrap(async (req, res) => {
+  const { key, id } = guideOf(req.body);
+  const enabled = Boolean(req.body.enabled);
+  await setMockEnabled(req.params.rid, enabled);
+  const rec = await updateMeta(key, id, (r) => { r.mocks = (r.mocks || []).map((m) => (m.id === req.params.rid ? { ...m, enabled } : m)); });
+  res.json({ mocks: rec.mocks });
+}));
+
+app.delete('/api/proxyman/mocks/:rid', wrap(async (req, res) => {
+  const { key, id } = guideOf(req.query);
+  // Proxyman'de zaten silinmişse de rehberden kaldırılır.
+  await deleteMock(req.params.rid).catch((e) => { if (!/not found|bulunamad/i.test(e.message)) throw e; });
+  const rec = await updateMeta(key, id, (r) => { r.mocks = (r.mocks || []).filter((m) => m.id !== req.params.rid); });
+  res.json({ mocks: rec.mocks });
 }));
 
 // Açık simülatörden ya da emülatörden ekran görüntüsü (yerel komutlar; dışarıya bir şey gitmez).

@@ -334,17 +334,19 @@
     const opts = [['pass', 'Geçti'], ['fail', 'Kaldı'], ['na', 'Bu platformda uygulanmaz']];
     if (cur) opts.push(['', 'İşareti kaldır']);
     if (cur === 'fail') opts.push(['bug', 'Hata kaydı aç']);
+    opts.push(['mock', 'Mock ile test et…']);
     for (const [v, label] of opts) {
       const o = make('button', `pmi ${v ? `o-${v}` : 'o-clear'}`);
       o.type = 'button';
-      const isState = v && v !== 'bug';
+      const isState = v && v !== 'bug' && v !== 'mock';
       o.setAttribute('role', isState ? 'menuitemradio' : 'menuitem');
       if (isState) o.setAttribute('aria-checked', String(cur === v));
-      o.append(make('span', 'pmk', MARK[v] || (v === 'bug' ? '+' : '')), label);
+      o.append(make('span', 'pmk', MARK[v] || (v === 'bug' ? '+' : v === 'mock' ? '⇄' : '')), label);
       o.addEventListener('click', (e) => {
         e.stopPropagation();
         closeMenu(true);
         if (v === 'bug') return askBug(li, p);
+        if (v === 'mock') return parent.postMessage({ qa: 'mock', c: Number(li.dataset.c), text: textOf(li) }, '*');
         set(li, p, v || null);
         update(li);
         if (v === 'fail') askBug(li, p);

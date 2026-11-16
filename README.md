@@ -88,6 +88,14 @@ Rehberin Slack, Notion, Confluence ya da Claude Docs'u okuyabilmesi için bu ba�
 
 Terminalde `claude` açıkken `/mcp` yazıp aynı bağlantılara oradan da giriş yapabilirsin. Bazı şirketlerde bağlantıyı önce bir yöneticinin onaylaması gerekir.
 
+**Proxyman (isteğe bağlı, macOS):** Rehber yakalanan gerçek trafiği de okusun istersen Proxyman'in MCP sunucusunu Claude Code'a bir kez ekle, sonra Ayarlar → Kaynaklar'dan Proxyman'i aç:
+
+```bash
+claude mcp add -s user proxyman -- /Applications/Proxyman.app/Contents/MacOS/mcp-server
+```
+
+Hata kaydına istek eklemek ve mock kurmak için bu adım gerekmez; qaHere Proxyman'le doğrudan konuşur.
+
 > qaHere yalnızca **senin** görebildiğin içeriği okur. Üyesi olmadığın özel kanallar rehbere girmez. Hiçbir kaynağa yazmaz.
 
 ### 4. qaHere'yi indir ve başlat
@@ -164,6 +172,18 @@ Kayıt açılınca görseller eklenir, rehberin işiyle bağlanır, ayarlandıys
 
 Proje, kayıt türü (Bug, Defect…), başlık biçimi (ör. `{platform} - {konu} Bug`), platforma göre atanan kişi, sprint panosu ve ek alanlar **Ayarlar → Hata kaydı** bölümünden ayarlanır. Token yoksa taslak yine hazırlanır; **Metni kopyala** ile elle açabilirsin.
 
+### Proxyman: istek ve mock
+
+Proxyman açıkken (uygulamanın trafiği Proxyman'den geçiyor ve HTTPS için SSL Proxying açıkken):
+
+- **Hata kaydına istek ekle:** Hata penceresinde **Proxyman'den istek ekle**'ye bas; maddedeki uç nokta yolu arama kutusuna kendiliğinden gelir. Seçtiğin istek ve yanıt, token, cookie ve Authorization gibi kimlik bilgileri gizlenerek kayda `.txt` olarak eklenir.
+- **Mock ile test et:** Maddenin platform menüsünden **Mock ile test et…**'i seç. Yakalanan bir isteği seç ya da adresi yaz; yanıtı üç yoldan biriyle ver:
+  - yakalanan yanıtı olduğu gibi kullan,
+  - gövdeyi kendin yaz,
+  - tarif et ("kupon listesi boş dönsün") ve **Claude üretsin**: araçsız kısa bir çağrıyla, örnek yanıtın şemasını koruyarak JSON yazar; kurmadan önce düzeltebilirsin.
+
+  **Proxyman'de kur** kuralı Map Local olarak açar. Açık mock varsa araç çubuğunda **Mock açık (n)** görünür; oradan kapatır ya da silersin. Kuralı Claude değil qaHere kurar.
+
 ### Güncelleme
 
 qaHere açılırken GitHub'da yeni sürüm olup olmadığına bakar. Varsa **Yeni sürüm var** penceresi neyin değiştiğini gösterir; **Güncelle**'ye basınca yeni sürüm indirilir ve qaHere kendini yeniden başlatır. Ayarların, rehberlerin ve işaretlerin olduğu gibi kalır. Elle denetlemek için: sağ üstte **Durum → Yeni sürümü denetle**.
@@ -182,7 +202,7 @@ Ayarlar arayüzden yapılır ve `data/settings.json` dosyasında saklanır (git'
 | --- | --- |
 | Jira adresi, e-posta, API token | Liste, arama ve ön veri için. Adres değişirse token yeniden istenir. |
 | Projeler | Soldaki listede görünecek Jira projeleri |
-| Kaynaklar | Slack, Notion, Confluence, Claude Docs; kapalı kaynağa hiç bakılmaz |
+| Kaynaklar | Slack, Notion, Confluence, Claude Docs, Proxyman; kapalı kaynağa hiç bakılmaz |
 | Çalışma alanı, vurgu rengi | Arayüzde ve rehber kapağında görünür |
 | Model | `sonnet` dengeli, `opus` daha derin, `haiku` en hafif |
 
@@ -195,6 +215,7 @@ Aynı değerleri `.env` dosyasıyla da verebilirsin (bkz. `.env.example`); aray�
 | `PORT` | `4310` | Arayüz portu |
 | `CHROME_BIN` | otomatik | PDF için tarayıcı yolu (bulunamazsa) |
 | `CLAUDE_EXTRA_ALLOWED_TOOLS` | boş | Bağlantıların farklı adla kuruluysa ek okuma araçları |
+| `PROXYMAN_MCP_BIN` | Proxyman'in macOS yolu | Proxyman MCP sunucusu başka yerdeyse |
 | `QAHERE_UPDATE_CHECK` | açık | `off` yazarsan yeni sürüm denetlenmez |
 
 **Maliyet:** qaHere ücretsizdir ve bir sunucuya bağlı değildir. Her rehber, onu üreten kişinin Claude hesabının kullanım hakkından düşer; ne kadar düşeceği işin büyüklüğüne ve modele bağlıdır.

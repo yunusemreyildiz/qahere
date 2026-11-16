@@ -67,6 +67,7 @@ const SOURCES = [
   { key: 'notion', name: 'Notion', desc: 'İşlerde bağlantısı verilen sayfalar' },
   { key: 'confluence', name: 'Confluence', desc: 'Analiz, teknik tasarım ve kontrat sayfaları' },
   { key: 'docs', name: 'Claude Docs', desc: 'İşlerde bağlantısı verilen claude.ai doküman ve artifact\'leri' },
+  { key: 'proxyman', name: 'Proxyman', desc: 'Yakalanan gerçek istek ve yanıtlar (kontratla karşılaştırma). Claude Code\'a bir kez eklenir: claude mcp add -s user proxyman -- /Applications/Proxyman.app/Contents/MacOS/mcp-server' },
 ];
 const MODELS = [
   { key: 'sonnet', name: 'Sonnet', desc: 'Dengeli. Önerilen.' },
@@ -613,6 +614,9 @@ function renderGuides(key, guides, selectedId) {
   state.onChecks = (e) => {
     if (e.source !== frame.contentWindow) return;
     const msg = e.data || {};
+    if (msg.qa === 'mock' && Number.isInteger(msg.c)) {
+      return openMockSheet({ g, c: msg.c, item: String(msg.text || '').slice(0, 1500), onChange: paintMocks });
+    }
     if (msg.qa === 'fail' && Number.isInteger(msg.c)) {
       return openBugSheet({ g, frame, c: msg.c, platform: msg.platform, item: String(msg.text || '').slice(0, 1500), section: String(msg.section || '').slice(0, 200) });
     }
@@ -623,6 +627,16 @@ function renderGuides(key, guides, selectedId) {
       .then((rec) => { if (mine !== seq) return; Object.assign(g, { checks: rec.checks, failed: rec.failed, platforms: rec.platforms }); paintProgress(); })
       .catch((err) => { if (mine === seq) paintProgress(`Kaydedilemedi (${err.message}). Yeniden işaretle.`); });
   };
+
+  // Açık mock varsa araç çubuğunda görünür: test bitince kapatmak unutulmasın.
+  const mocksBtn = h('button', { class: 'btn plain sm mockbtn', type: 'button', onclick: () => openMockSheet({ g, c: null, item: '', onChange: paintMocks }) });
+  function paintMocks() {
+    const on = (g.mocks || []).filter((m) => m.enabled).length;
+    mocksBtn.hidden = !(g.mocks || []).length;
+    mocksBtn.classList.toggle('on', on > 0);
+    mocksBtn.textContent = on ? `Mock açık (${on})` : 'Mocklar';
+  }
+  paintMocks();
 
   const del = h('button', { class: 'btn danger sm', type: 'button', onclick: async () => {
     if (del.dataset.armed !== '1') { del.dataset.armed = '1'; del.textContent = 'Silmeyi onayla'; setTimeout(() => { del.dataset.armed = ''; del.textContent = 'Sil'; }, 4000); return; }
@@ -645,7 +659,7 @@ function renderGuides(key, guides, selectedId) {
       h('div', { class: 'gtitle' }, h('h2', {}, g.title), h('div', { class: 'sub' }, `${fmtDate(g.createdAt)} · ${stats}`)),
       progress,
       h('div', { class: 'acts' },
-        version, kidsBtn, regen,
+        version, kidsBtn, mocksBtn, regen,
         h('a', { class: 'btn plain sm', href: `${base}.html`, target: '_blank', rel: 'noopener', title: 'Tam rapor, düz sırayla' }, 'Yeni sekmede aç'),
         h('a', { class: 'btn sm', href: `${base}.pdf` }, 'PDF indir'),
         del)),
@@ -673,7 +687,7 @@ function withViewer(html, [js, css]) {
 window.addEventListener('message', (e) => state.onChecks?.(e));
 
 /** Reddedilen araçları kaynağa çevirir; kapalı kaynak varsa tek tıkla açtırır. */
-const DENIAL_SOURCES = [[/Claude_Docs/i, 'docs'], [/slack/i, 'slack'], [/notion/i, 'notion'], [/confluence/i, 'confluence']];
+const DENIAL_SOURCES = [[/Claude_Docs/i, 'docs'], [/slack/i, 'slack'], [/notion/i, 'notion'], [/confluence/i, 'confluence'], [/proxyman/i, 'proxyman']];
 function denialNotes(g) {
   const denied = [...new Set(g.stats?.denials || [])];
   if (!denied.length) return [];
@@ -775,7 +789,7 @@ const readFile = (file) => new Promise((resolve, reject) => {
 });
 
 function openBugSheet({ g, frame, c, platform, item, section }) {
-  const f = { platform: ['ios', 'android'].includes(platform) ? platform : 'both', happened: '', expected: item, steps: '', images: [] };
+  const f = { platform: ['ios', 'android'].includes(platform) ? platform : 'both', happened: '', expected: item, steps: '', images: [], flows: [] };
   const bugCfg = state.config.bug || {};
   let onPaste = null;
   const done = () => { if (onPaste) document.removeEventListener('paste', onPaste); onPaste = null; };
@@ -825,6 +839,17 @@ function openBugSheet({ g, frame, c, platform, item, section }) {
     onPaste = (e) => { const files = [...(e.clipboardData?.files || [])]; if (files.length) { e.preventDefault(); addFiles(files); } };
     document.addEventListener('paste', onPaste);
 
+    // Proxyman'den ilgili istek (isteğe bağlı): kimlik bilgileri gizlenip metin olarak eklenir.
+    const flowsBox = h('div', { class: 'f' });
+    const paintFlows = (open) => {
+      const chips = f.flows.map((fl, i) => h('span', { class: 'flowchip' }, `${fl.method} ${fl.url.replace(/^https?:\/\//, '').slice(0, 70)}`,
+        h('button', { type: 'button', 'aria-label': 'İsteği kaldır', onclick: () => { f.flows.splice(i, 1); paintFlows(open); } }, '×')));
+      flowsBox.replaceChildren('Proxyman istekleri (isteğe bağlı)', ...chips,
+        open ? flowPicker({ q: guessPath(item), onPick: (fl) => { if (!f.flows.some((x) => x.id === fl.id) && f.flows.length < 5) f.flows.push(fl); paintFlows(true); } })
+          : h('div', {}, h('button', { class: 'btn plain sm', type: 'button', onclick: () => paintFlows(true) }, 'Proxyman\'den istek ekle')));
+    };
+    paintFlows(false);
+
     const err = h('div', {});
     const next = h('button', { class: 'btn sm', type: 'button', onclick: async () => {
       if (!f.happened.trim()) { err.replaceChildren(h('div', { class: 'msg bad' }, '"Ne oldu?" alanını doldur.')); happened.focus(); return; }
@@ -841,6 +866,7 @@ function openBugSheet({ g, frame, c, platform, item, section }) {
       h('label', { class: 'f' }, 'Ne bekleniyordu?', ta('expected', { rows: '2' })),
       h('label', { class: 'f' }, 'Adımlar (isteğe bağlı, her satıra bir adım)', ta('steps', { rows: '3', placeholder: 'Şifremi unuttum ekranına gir\nE-posta alanına "abc" yaz\nDevam\'a bas' })),
       h('div', { class: 'f' }, 'Ekran görüntüleri', shots, fileInput, shotErr),
+      flowsBox,
       h('p', { class: 'hint' }, 'Taslağı Claude araçsız, kısa bir çağrıyla yazar (birkaç saniye). Kayıt, önizlemeyi onaylamadan açılmaz.'),
       err,
     ), [h('button', { class: 'btn link sm', type: 'button', onclick: closeSheet }, 'Vazgeç'), next]);
@@ -861,7 +887,8 @@ function openBugSheet({ g, frame, c, platform, item, section }) {
       h('dt', {}, 'Atanan'), h('dd', {}, assignee || 'Atanmayacak'),
       h('dt', {}, 'Bağ'), h('dd', {}, `${g.key} (${bugCfg.linkType || 'Relates'})`),
       h('dt', {}, 'Sprint'), h('dd', {}, sprint ? 'Aktif sprinte alınacak' : 'Backlog'),
-      h('dt', {}, 'Görsel'), h('dd', {}, f.images.length ? `${f.images.length} ekran görüntüsü` : 'Yok'));
+      h('dt', {}, 'Görsel'), h('dd', {}, f.images.length ? `${f.images.length} ekran görüntüsü` : 'Yok'),
+      h('dt', {}, 'İstek'), h('dd', {}, f.flows.length ? `${f.flows.length} Proxyman isteği (kimlik bilgileri gizlenir)` : 'Yok'));
     const err = h('div', {});
     const back = h('button', { class: 'btn link sm', type: 'button', onclick: step1 }, 'Geri');
     const copy = h('button', { class: 'btn plain sm', type: 'button', onclick: async () => {
@@ -870,7 +897,7 @@ function openBugSheet({ g, frame, c, platform, item, section }) {
     const go = h('button', { class: 'btn sm', type: 'button', disabled: !state.config.jiraConfigured, onclick: async () => {
       go.disabled = true; back.disabled = true; go.textContent = 'Açılıyor…'; err.replaceChildren();
       try {
-        const r = await send('/api/bugs', 'POST', { storyKey: g.key, guideId: g.id, c, platform: pl, summary: title.value, description: desc.value, images: f.images });
+        const r = await send('/api/bugs', 'POST', { storyKey: g.key, guideId: g.id, c, platform: pl, summary: title.value, description: desc.value, images: f.images, flows: f.flows.map((x) => x.id) });
         frame.contentWindow?.postMessage({ qa: 'bug', c, key: r.key, url: r.url }, '*');
         done();
         openSheet(`${r.key} açıldı`, h('div', { class: 'bugform' },
@@ -898,6 +925,122 @@ function openBugSheet({ g, frame, c, platform, item, section }) {
   };
 
   step1();
+}
+
+// ---- Proxyman ------------------------------------------------------------------------------
+
+/** Maddenin metnindeki uç nokta yolunu tahmin eder ("/api/v1/discount-wheel/participate" gibi). */
+function guessPath(text) {
+  const paths = String(text || '').match(/\/[A-Za-z0-9_\-.]+(?:\/[A-Za-z0-9_\-.{}]+)+/g) || [];
+  const best = paths.sort((a, b) => b.length - a.length)[0] || '';
+  return best.split('/').filter((x) => x && !/[{}]/.test(x)).slice(-3).join('/');
+}
+
+/** Proxyman'de yakalanan istekleri arayıp seçtirir. onPick(flow) her seçimde çağrılır. */
+function flowPicker({ q = '', onPick, pickLabel = 'Ekle' }) {
+  const input = h('input', { class: 'input', placeholder: 'Adreste geçen bir parça (ör. discount-wheel)', value: q, spellcheck: 'false' });
+  const list = h('div', { class: 'flows' });
+  const status = h('div', { class: 'hint' });
+  let t;
+  const load = async () => {
+    status.textContent = 'Proxyman\'e bakılıyor…';
+    try {
+      const r = await api(`/api/proxyman/flows?limit=60&q=${encodeURIComponent(input.value.trim())}`);
+      status.textContent = r.flows.length ? '' : 'Eşleşen istek yok. Uygulamada ilgili ekranı açıp tekrar ara; HTTPS istekleri için Proxyman\'de SSL Proxying açık olmalı.';
+      list.replaceChildren(...r.flows.slice(0, 40).map((f) => h('button', { type: 'button', class: 'flow', onclick: () => onPick(f) },
+        h('span', { class: `fm m-${f.method.toLowerCase()}` }, f.method),
+        h('span', { class: `fs ${f.status >= 400 ? 'bad' : ''}` }, f.status ?? '…'),
+        h('span', { class: 'fu', title: f.url }, f.url.replace(/^https?:\/\//, '')),
+        h('span', { class: 'fa' }, pickLabel))));
+    } catch (e) { status.textContent = e.message; list.replaceChildren(); }
+  };
+  input.addEventListener('input', () => { clearTimeout(t); t = setTimeout(load, 350); });
+  queueMicrotask(load);
+  return h('div', { class: 'picker' }, input, status, list);
+}
+
+function mockList(g, onChange) {
+  const box = h('div', { class: 'mocks' });
+  const paint = () => {
+    const ms = Array.isArray(g.mocks) ? g.mocks : [];
+    if (!ms.length) return box.replaceChildren(h('p', { class: 'hint' }, 'Bu rehber için kurulmuş mock yok.'));
+    box.replaceChildren(...ms.map((m) => {
+      const err = h('span', { class: 'hint bad-text' });
+      const call = async (fn) => { try { const r = await fn(); g.mocks = r.mocks; paint(); onChange?.(); } catch (e) { err.textContent = e.message; } };
+      const sw = h('input', { type: 'checkbox', class: 'switch', 'aria-label': 'Mock açık', onchange: () => call(() => send(`/api/proxyman/mocks/${m.id}`, 'PUT', { key: g.key, guideId: g.id, enabled: sw.checked })) });
+      sw.checked = m.enabled;
+      return h('div', { class: 'row' },
+        h('div', { class: 'grow' }, h('b', {}, `${m.method || 'ANY'} ${String(m.url || '').replace(/^https?:\/\//, '') || '(yakalanan istekten)'}`),
+          h('span', {}, `${m.c != null ? `Madde ${m.c + 1} · ` : ''}${m.status ? `${m.status} · ` : ''}${fmtDate(m.at)}`), err),
+        sw,
+        h('button', { class: 'btn danger sm', type: 'button', onclick: () => call(() => api(`/api/proxyman/mocks/${m.id}?key=${encodeURIComponent(g.key)}&guideId=${encodeURIComponent(g.id)}`, { method: 'DELETE' })) }, 'Sil'));
+    }));
+  };
+  paint();
+  return box;
+}
+
+function openMockSheet({ g, c, item, onChange }) {
+  const f = { url: '', method: 'GET', status: 200, body: '', flow: null };
+  const urlIn = h('input', { class: 'input', placeholder: 'https://api.ornek.com/v1/kuponlar', spellcheck: 'false', oninput: () => { f.url = urlIn.value.trim(); f.flow = null; paintSrc(); } });
+  const methodSel = h('select', { class: 'input', onchange: () => { f.method = methodSel.value; } }, ...['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'ANY'].map((m) => h('option', { value: m }, m)));
+  const statusIn = h('input', { class: 'input', type: 'number', min: '100', max: '599', value: '200', oninput: () => { f.status = Number(statusIn.value) || 200; } });
+  const body = h('textarea', { class: 'input mono', rows: '10', spellcheck: 'false', placeholder: '{ "items": [] }', oninput: () => { f.body = body.value; } });
+  let sample = '';
+  const srcBox = h('div', {});
+  const useCaptured = h('label', { class: 'only-row' }, h('input', { type: 'checkbox' }), ' Yakalanan yanıtı olduğu gibi kullan (gövde yazmadan)');
+  const paintSrc = () => {
+    useCaptured.hidden = !f.flow;
+    srcBox.replaceChildren(...(f.flow ? [h('div', { class: 'msg ok' }, `Seçilen istek: ${f.flow.method} ${f.flow.url.replace(/^https?:\/\//, '')}${f.flow.status ? ` → ${f.flow.status}` : ''}`)] : []));
+  };
+  const picker = flowPicker({ q: guessPath(item), pickLabel: 'Seç', onPick: async (fl) => {
+    f.flow = fl; f.url = fl.url.split('?')[0]; urlIn.value = f.url; f.method = fl.method; methodSel.value = fl.method; paintSrc();
+    try { sample = (await api(`/api/proxyman/flows/${encodeURIComponent(fl.id)}`)).text; } catch { sample = ''; }
+  } });
+  paintSrc();
+
+  const instr = h('input', { class: 'input', placeholder: 'Ör. kupon listesi boş dönsün / tutar 0 olsun / 500 hata' });
+  const err = h('div', {});
+  const gen = h('button', { class: 'btn plain sm', type: 'button', onclick: async () => {
+    gen.disabled = true; gen.textContent = 'Üretiliyor…'; err.replaceChildren();
+    try { const r = await send('/api/proxyman/mock-draft', 'POST', { instruction: instr.value, sample, item, url: f.url }); body.value = r.body; f.body = r.body; }
+    catch (e) { err.replaceChildren(h('div', { class: 'msg bad' }, e.message)); }
+    gen.disabled = false; gen.textContent = 'Claude üretsin';
+  } }, 'Claude üretsin');
+
+  const listBox = mockList(g, onChange);
+  const create = h('button', { class: 'btn sm', type: 'button', onclick: async () => {
+    err.replaceChildren();
+    const fromFlow = f.flow && useCaptured.querySelector('input').checked;
+    if (!fromFlow) {
+      if (!/^https?:\/\//.test(f.url)) return err.replaceChildren(h('div', { class: 'msg bad' }, 'Adres https:// ile başlamalı. Yukarıdan bir istek seç ya da adresi yaz.'));
+      if (body.value.trim()) { try { JSON.parse(body.value); } catch { if (!confirm('Gövde geçerli JSON değil. Yine de düz metin olarak kurulsun mu?')) return; } }
+    }
+    create.disabled = true; create.textContent = 'Kuruluyor…';
+    try {
+      const r = await send('/api/proxyman/mocks', 'POST', fromFlow
+        ? { key: g.key, guideId: g.id, c, from: 'flow', flowId: f.flow.id, url: f.url, method: f.method }
+        : { key: g.key, guideId: g.id, c, from: 'body', url: f.url, method: f.method, status: f.status, body: body.value || '{}' });
+      g.mocks = r.mocks;
+      listBox.replaceWith(mockList(g, onChange));
+      onChange?.();
+      create.textContent = 'Kuruldu';
+      setTimeout(closeSheet, 700);
+    } catch (e) { err.replaceChildren(h('div', { class: 'msg bad' }, e.message)); create.disabled = false; create.textContent = 'Proxyman\'de kur'; }
+  } }, 'Proxyman\'de kur');
+
+  openSheet('Mock ile test', h('div', { class: 'bugform' },
+    item ? h('p', { class: 'bug-item mock' }, h('span', {}, 'Test maddesi'), item) : null,
+    h('div', { class: 'f' }, 'Hangi istek? Uygulamada ekranı açtıysan yakalanan istekten seç.', picker),
+    srcBox,
+    h('div', { class: 'trio wide' }, h('label', { class: 'f' }, 'Adres', urlIn), h('label', { class: 'f' }, 'Yöntem', methodSel), h('label', { class: 'f' }, 'Durum kodu', statusIn)),
+    useCaptured,
+    h('div', { class: 'f' }, 'Yanıt gövdesi', h('div', { class: 'gen-row' }, instr, gen), body),
+    h('p', { class: 'hint' }, 'Kural Proxyman\'de Map Local olarak açılır ve uygulama bu adrese gittiğinde bu yanıtı alır. Test bitince aşağıdan kapat ya da sil. Claude yalnızca gövdeyi yazar; kuralı qaHere kurar.'),
+    err,
+    h('div', { class: 'group-title' }, 'Bu rehberdeki mocklar'),
+    listBox,
+  ), [h('button', { class: 'btn link sm', type: 'button', onclick: closeSheet }, 'Kapat'), create]);
 }
 
 // ---- Güncelleme ---------------------------------------------------------------------------

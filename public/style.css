@@ -212,6 +212,29 @@ div.f{display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--grap
 .adv > *:not(summary){margin-top:10px}
 .adv label.f{margin-top:10px}
 .bad-text{color:var(--bad)}
+.picker{display:flex;flex-direction:column;gap:8px}
+.flows{display:flex;flex-direction:column;max-height:230px;overflow:auto;border:1px solid var(--rule);border-radius:var(--r-sm);background:var(--sheet)}
+.flows:empty{display:none}
+.flow{display:grid;grid-template-columns:52px 36px minmax(0,1fr) auto;gap:8px;align-items:center;border:0;border-bottom:1px solid var(--rule);background:none;padding:7px 10px;text-align:left;cursor:pointer;font-size:13px;color:var(--ink)}
+.flow:last-child{border-bottom:0}
+.flow:hover{background:var(--well)}
+.fm{font:600 11px var(--mono);color:var(--graphite)}
+.m-post .fm,.fm.m-post{color:var(--warn)}
+.fs{font:600 12px var(--mono);color:var(--ok)}
+.fs.bad{color:var(--bad)}
+.fu{font:12.5px var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fa{font-size:12px;font-weight:600;color:var(--accent-text)}
+.flowchip{display:inline-flex;align-items:center;gap:6px;align-self:flex-start;max-width:100%;font:12.5px var(--mono);color:var(--ink);background:var(--sheet);border:1px solid var(--rule-2);border-radius:var(--r-sm);padding:4px 4px 4px 8px;overflow:hidden}
+.flowchip button{border:0;background:var(--well);border-radius:4px;width:20px;height:20px;cursor:pointer;color:var(--graphite)}
+.trio.wide{grid-template-columns:minmax(0,3fr) minmax(0,1fr) minmax(0,1fr)}
+.gen-row{display:flex;gap:8px}
+.gen-row .input{flex:1}
+.only-row{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--graphite)}
+.only-row[hidden]{display:none}
+.bug-item.mock{border-left-color:var(--accent)}
+.mocks{display:flex;flex-direction:column;background:var(--sheet);border:1px solid var(--rule);border-radius:var(--r)}
+.mocks > .hint{padding:12px 14px;margin:0}
+.mockbtn.on{border-color:var(--warn);color:var(--warn)}
 .changes{margin:6px 0 14px;padding-left:20px}
 .changes li{margin:4px 0}
 .update .msg{margin-top:12px}

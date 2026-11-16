@@ -90,6 +90,14 @@ For the guide to read Slack, Notion, Confluence or Claude Docs, those connectors
 
 You can also type `/mcp` inside `claude` in a terminal and sign in to the same connectors there. In some companies an admin has to approve a connector first.
 
+**Proxyman (optional, macOS):** If you want the guide to read captured traffic too, add Proxyman's MCP server to Claude Code once, then turn Proxyman on under Settings → Sources:
+
+```bash
+claude mcp add -s user proxyman -- /Applications/Proxyman.app/Contents/MacOS/mcp-server
+```
+
+Attaching requests to bugs and setting up mocks don't need this step; qaHere talks to Proxyman directly.
+
 > qaHere only reads content **you** can see. Private channels you're not a member of never end up in a guide. It never writes to any source.
 
 ### 4. Download and start qaHere
@@ -166,6 +174,18 @@ The new issue gets the screenshots attached, is linked to the guide's issue and,
 
 Project, issue type (Bug, Defect…), title format (e.g. `{platform} - {konu} Bug`), assignee per platform, sprint board and extra fields are set under **Ayarlar → Hata kaydı** (Settings → Bug filing). Without a token you still get the draft; copy it with **Metni kopyala** and file it by hand.
 
+### Proxyman: requests and mocks
+
+With Proxyman running (your app's traffic going through it, and SSL Proxying on for HTTPS):
+
+- **Attach a request to a bug:** in the bug window press **Proxyman'den istek ekle** (Add a request from Proxyman); the endpoint path from the item is pre-filled in the search. The request and response you pick are attached as `.txt`, with credentials such as tokens, cookies and Authorization hidden.
+- **Test with a mock:** pick **Mock ile test et…** (Test with a mock) from an item's platform menu. Choose a captured request or type the URL, then provide the response in one of three ways:
+  - reuse the captured response as is,
+  - write the body yourself,
+  - describe it ("coupon list comes back empty") and press **Claude üretsin** (Let Claude write it): Claude writes JSON in a short call with no tools, keeping the sample's schema; you can edit it before setting it up.
+
+  **Proxyman'de kur** (Set up in Proxyman) creates a Map Local rule. While a mock is on, the toolbar shows **Mock açık (n)** (Mock on); turn it off or delete it from there. qaHere creates the rule, not Claude.
+
 ### Updating
 
 When qaHere opens, it checks GitHub for a new version. If there is one, a **Yeni sürüm var** (New version) window lists what changed; press **Güncelle** (Update) and qaHere downloads it and restarts itself. Your settings, guides and ticks stay as they are. To check by hand: top right, **Durum → Yeni sürümü denetle** (Status → Check for a new version).
@@ -184,7 +204,7 @@ Settings are made in the UI and stored in `data/settings.json` (never committed)
 | --- | --- |
 | Jira address, email, API token | For the list, search and pre-fetched data. Changing the address asks for the token again. |
 | Projects | Jira projects shown in the left list |
-| Sources | Slack, Notion, Confluence, Claude Docs; disabled sources are never read |
+| Sources | Slack, Notion, Confluence, Claude Docs, Proxyman; disabled sources are never read |
 | Workspace, accent color | Shown in the UI and on the guide cover |
 | Model | `sonnet` balanced, `opus` deeper, `haiku` lightest |
 
@@ -197,6 +217,7 @@ You can also provide the same values in a `.env` file (see `.env.example`); sett
 | `PORT` | `4310` | UI port |
 | `CHROME_BIN` | auto | Browser path for PDFs (if not found) |
 | `CLAUDE_EXTRA_ALLOWED_TOOLS` | empty | Extra read-only tools if your connectors use different names |
+| `PROXYMAN_MCP_BIN` | Proxyman's macOS path | If Proxyman's MCP server lives elsewhere |
 | `QAHERE_UPDATE_CHECK` | on | Set to `off` to skip the new-version check |
 
 **Cost:** qaHere is free and doesn't depend on any server. Each guide counts against the Claude usage of the person who generates it; how much depends on the size of the issue and the model.
