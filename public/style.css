@@ -158,6 +158,7 @@ td a{white-space:nowrap;font:500 13px var(--mono)}
 .log li{padding:3px 0 3px 16px;position:relative}
 .log li::before{content:"";position:absolute;left:-5px;top:10px;width:7px;height:7px;border-radius:1px;background:var(--rule-2)}
 .log li:last-child{color:var(--ink)} .log li:last-child::before{background:var(--accent)}
+.log li.quiet{color:var(--mute);font-style:italic}
 .msg{padding:10px 14px;border-radius:var(--r-sm);margin-top:12px;font-size:14px;background:var(--well);border-left:3px solid var(--rule-2)}
 .msg.bad{color:var(--bad);background:color-mix(in srgb,var(--bad) 8%,transparent);border-left-color:var(--bad)}
 .msg.warn{color:var(--warn);background:color-mix(in srgb,var(--warn) 9%,transparent);border-left-color:var(--warn)}

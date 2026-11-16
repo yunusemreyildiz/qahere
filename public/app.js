@@ -614,16 +614,21 @@ function attachJob(jobId, key) {
   let started = Date.now();
   let lastStep = Date.now();
   let quietShown = false;
+  let steps = 0; // Claude'dan gelen gerçek adım sayısı
   box.replaceChildren(h('div', { class: 'progress' },
     h('div', { class: 'head' }, h('span', { class: 'spinner' }), h('b', {}, 'Rehber hazırlanıyor'), timer,
       h('button', { class: 'btn plain sm', type: 'button', style: 'margin-left:auto', onclick: () => api(`/api/jobs/${jobId}/cancel`, { method: 'POST' }).catch(() => {}) }, 'İptal')),
     log));
-  const add = (t) => { log.append(h('li', {}, t)); log.scrollTop = log.scrollHeight; lastStep = Date.now(); };
+  const add = (t, cls) => { log.append(h('li', cls ? { class: cls } : {}, t)); log.scrollTop = log.scrollHeight; lastStep = Date.now(); };
   const tick = setInterval(() => {
     const s = Math.floor((Date.now() - started) / 1000);
     timer.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-    // Kaynak taraması bitince Claude uzun süre sessizce yazar; kullanıcı takıldı sanmasın.
-    if (!quietShown && Date.now() - lastStep > 30_000) { quietShown = true; add('Kaynaklar okundu, rehber yazılıyor. Bu adım birkaç dakika sürer.'); }
+    // Claude bazen uzun süre sessiz kalır (açılışta bağlantılar yüklenirken ya da yazarken); kullanıcı takıldı sanmasın.
+    // Ne yaptığını bilmediğimiz için "okuma bitti" demiyoruz; her sessiz aralıkta bir kez not düşülür.
+    if (!quietShown && Date.now() - lastStep > 30_000) {
+      quietShown = true;
+      add(steps <= 1 ? 'Claude Code açılıyor ve bağlantılar yükleniyor; ilk adım biraz sürebilir.' : 'Claude okuduklarını değerlendiriyor ya da rehberi yazıyor; bu adım birkaç dakika sürebilir.', 'quiet');
+    }
   }, 1000);
   const es = new EventSource(`/api/jobs/${jobId}/events`);
   const finish = () => { clearInterval(tick); es.close(); if ($('#genBtn')) $('#genBtn').disabled = false; };
@@ -631,7 +636,7 @@ function attachJob(jobId, key) {
   es.onmessage = async (m) => {
     const ev = JSON.parse(m.data);
     if (ev.type === 'start') started = ev.startedAt;
-    if (ev.type === 'step') add(ev.message);
+    if (ev.type === 'step') { steps += 1; quietShown = false; add(ev.message); }
     if (ev.type === 'init') {
       const on = SOURCES.filter((s) => state.config.sources[s.key]).map((s) => (s.key === 'confluence' ? 'atlassian' : s.key === 'docs' ? 'claude docs' : s.key));
       const bad = (ev.servers || []).filter((s) => on.some((k) => s.toLowerCase().includes(k)) && !/connected/i.test(s));
