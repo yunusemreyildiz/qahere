@@ -162,11 +162,12 @@ $('#statusBtn').addEventListener('click', () => showStatus());
 function draftFrom(cfg) {
   return { workspace: cfg.workspace, jiraBaseUrl: cfg.jiraBaseUrl, jiraEmail: cfg.jiraEmail, jiraApiToken: '', hasToken: cfg.hasToken,
     projects: [...cfg.projects], sources: { ...cfg.sources }, model: cfg.model, accent: cfg.accent,
-    bug: JSON.parse(JSON.stringify(cfg.bug || {})), run: JSON.parse(JSON.stringify(cfg.run || { ios: {}, android: {} })) };
+    bug: JSON.parse(JSON.stringify(cfg.bug || {})), run: JSON.parse(JSON.stringify(cfg.run || { ios: {}, android: {} })),
+    profile: JSON.parse(JSON.stringify(cfg.profile || { role: '', platforms: [], boards: [] })) };
 }
 
 async function saveDraft(d, extra = {}) {
-  const body = { workspace: d.workspace, jiraBaseUrl: d.jiraBaseUrl, jiraEmail: d.jiraEmail, projects: d.projects, sources: d.sources, model: d.model, accent: d.accent, bug: d.bug, run: d.run, ...extra };
+  const body = { workspace: d.workspace, jiraBaseUrl: d.jiraBaseUrl, jiraEmail: d.jiraEmail, projects: d.projects, sources: d.sources, model: d.model, accent: d.accent, bug: d.bug, run: d.run, profile: d.profile, ...extra };
   if (d.jiraApiToken) body.jiraApiToken = d.jiraApiToken;
   applyConfig(await send('/api/settings', 'PUT', body));
 }
@@ -190,7 +191,7 @@ function jiraSection(d) {
     result.className = 'result wait'; result.textContent = 'Bağlanılıyor…'; test.disabled = true;
     try {
       const r = await send('/api/jira/test', 'POST', { baseUrl: d.jiraBaseUrl, email: d.jiraEmail, token: d.jiraApiToken });
-      d.jiraBaseUrl = r.baseUrl; d.jiraOk = true; known = r.projects;
+      d.jiraBaseUrl = r.baseUrl; d.jiraOk = true; d.jiraUser = r.user; known = r.projects;
       result.className = 'result ok'; result.replaceChildren(icon('check', 15), `Bağlandı${r.user ? ` · ${r.user}` : ''}`);
       chipRow.hidden = !known.length; paint();
     } catch (e) { d.jiraOk = false; result.className = 'result bad'; result.textContent = e.message; }
@@ -259,6 +260,78 @@ function lookSection(d) {
     h('div', { class: 'group-foot' }, 'Ad ve renk, arayüzde ve üretilen rehberlerin kapağında görünür.'),
     h('div', { class: 'group-title' }, 'Model'),
     h('div', { class: 'group' }, h('div', { class: 'row stack' }, models, h('div', { class: 'grow' }, mdesc))),
+  );
+}
+
+const ROLES = [{ key: 'qa', name: 'QA' }, { key: 'dev', name: 'Geliştirici' }, { key: 'product', name: 'Ürün / analist' }, { key: 'other', name: 'Diğer' }];
+const PLATFORM_NAMES = { ios: 'iOS', android: 'Android' };
+
+function profileSection(d) {
+  const p = d.profile;
+  const who = h('span', {}, d.jiraUser || '');
+  if (!d.jiraUser) {
+    if (state.config.jiraConfigured) api('/api/me').then((m) => { who.textContent = m.name; }).catch(() => { who.textContent = 'Okunamadı'; });
+    else who.textContent = 'Jira bağlanınca görünür';
+  }
+  const roles = h('div', { class: 'seg' });
+  const paintR = () => roles.replaceChildren(...ROLES.map((r) => h('button', { type: 'button', class: p.role === r.key ? 'active' : '', onclick: () => { p.role = p.role === r.key ? '' : r.key; paintR(); } }, r.name)));
+  paintR();
+  const plats = h('div', { class: 'chips' });
+  const paintP = () => plats.replaceChildren(...Object.entries(PLATFORM_NAMES).map(([k, n]) => h('button', { type: 'button', class: `chip${p.platforms.includes(k) ? ' on' : ''}`,
+    onclick: () => { p.platforms = p.platforms.includes(k) ? p.platforms.filter((x) => x !== k) : [...p.platforms, k]; paintP(); } }, n)));
+  paintP();
+
+  // Takım: projelerdeki Jira panoları; çoklu seçim, adla süzülür.
+  let boards = [];
+  const chosen = h('div', { class: 'chips' });
+  const found = h('div', { class: 'chips' });
+  const bnote = h('div', { class: 'hint' }, 'Panolar yükleniyor…');
+  let remote = null; // adla tüm Jira'da arama sonucu
+  let timer;
+  const filter = h('input', { class: 'bare', placeholder: 'Pano adıyla ara', autocomplete: 'off', spellcheck: 'false', oninput: () => {
+    remote = null; paintB();
+    clearTimeout(timer);
+    const q = filter.value.trim();
+    if (q.length < 2 || !state.config.jiraConfigured) return;
+    timer = setTimeout(async () => {
+      try { const r = (await api(`/api/jira/boards?q=${encodeURIComponent(q)}`)).boards; if (filter.value.trim() === q) { remote = r; paintB(); } } catch { /* yerel liste kalır */ }
+    }, 350);
+  } });
+  const has = (id) => p.boards.some((b) => b.id === id);
+  const paintB = () => {
+    chosen.replaceChildren(...p.boards.map((b) => h('button', { type: 'button', class: 'chip on', title: 'Çıkar', onclick: () => { p.boards = p.boards.filter((x) => x.id !== b.id); paintB(); } }, b.name)));
+    const q = filter.value.trim().toLocaleLowerCase('tr');
+    const pool = remote ? [...boards, ...remote.filter((r) => !boards.some((b) => b.id === r.id))] : boards;
+    const list = pool.filter((b) => !has(b.id) && (!q || b.name.toLocaleLowerCase('tr').includes(q)));
+    found.replaceChildren(...list.slice(0, 24).map((b) => h('button', { type: 'button', class: 'chip', title: b.project || '',
+      onclick: () => { if (p.boards.length < 10) p.boards = [...p.boards, { id: b.id, name: b.name }]; paintB(); } }, b.name, b.project ? h('small', {}, b.project) : null)));
+    if (boards.length || remote) {
+      bnote.textContent = list.length > 24 ? `${list.length} pano; adla arayarak daralt.`
+        : list.length ? 'Takımının panosunu seç; birden fazla seçebilirsin.'
+        : q ? (remote || q.length < 2 ? 'Bu adla pano bulunamadı.' : 'Aranıyor…')
+        : 'Seçili projelerdeki panoların hepsi seçili. Başka bir panoyu adıyla arayabilirsin.';
+    }
+  };
+  const loadBoards = async () => {
+    if (!state.config.jiraConfigured) { bnote.textContent = 'Panoları görmek için önce Jira\'yı bağla.'; return; }
+    try {
+      boards = (await api(`/api/jira/boards?projects=${encodeURIComponent(d.projects.join(','))}`)).boards;
+      if (!boards.length) bnote.textContent = 'Seçili projelerde pano bulunamadı.';
+    } catch (e) { bnote.textContent = e.message; }
+    paintB();
+  };
+  paintB();
+  loadBoards();
+
+  return h('div', {},
+    h('div', { class: 'group' },
+      h('div', { class: 'row' }, h('span', { class: 'lab' }, 'Jira\'da'), h('div', { class: 'grow' }, who)),
+      h('div', { class: 'row stack' }, h('div', { class: 'grow' }, h('b', {}, 'Rolün')), roles),
+      h('div', { class: 'row stack' }, h('div', { class: 'grow' }, h('b', {}, 'Test ettiğin platformlar'), h('span', {}, 'Rehber bu platformlara göre yazılır; kontrol listesinde varsayılan olarak bunlar açılır.')), plats)),
+    h('div', { class: 'group-title' }, 'Takımın'),
+    h('div', { class: 'group' },
+      h('div', { class: 'row stack' }, chosen, h('label', { class: 'grow' }, filter), bnote, found)),
+    h('div', { class: 'group-foot' }, 'Listede "Takımım" seçince bu panolardaki epic\'ler ve hatalar gelir. Rolün, platformların ve takımın rehber yazılırken Claude\'a da söylenir.'),
   );
 }
 
@@ -382,6 +455,7 @@ function openSettings() {
   const cancel = h('button', { class: 'btn link sm', type: 'button', onclick: () => { document.documentElement.style.setProperty('--accent', before); closeSheet(); } }, 'Vazgeç');
   openSheet('Ayarlar', h('div', {},
     h('div', { class: 'group-title' }, 'Jira'), jiraSection(d),
+    h('div', { class: 'group-title' }, 'Sen kimsin'), profileSection(d),
     h('div', { class: 'group-title' }, 'Kaynaklar'), sourcesSection(d),
     h('div', { class: 'group-title' }, 'Hata kaydı'), bugSection(d),
     h('div', { class: 'group-title' }, 'Simülatörde koşu'), runSection(d),
@@ -430,7 +504,8 @@ function startOnboarding() {
   const steps = [
     { hero: true },
     { title: 'Claude Code', lead: 'Rehberi bilgisayarındaki Claude Code yazar.', body: claudeStep },
-    { title: 'Jira\'yı bağla', lead: 'Epic\'lerini listelemek ve içeriklerini okumak için.', body: () => jiraSection(d), skip: 'Token olmadan devam et' },
+    { title: 'Jira\'yı bağla', lead: 'Epic\'lerini ve hatalarını listelemek, içeriklerini okumak için.', body: () => jiraSection(d), skip: 'Token olmadan devam et', save: true },
+    { title: 'Sen kimsin?', lead: 'Listeyi sana göre süzelim, rehberi de sana göre yazalım.', body: () => profileSection(d) },
     { title: 'Kaynakları seç', lead: 'Rehber yazılırken Jira\'nın yanında nerelere bakılsın?', body: () => sourcesSection(d) },
     { title: 'Son dokunuş', lead: 'İstersen bir ad ve renk ver.', body: () => lookSection(d), next: 'Kullanmaya başla' },
   ];
@@ -464,7 +539,12 @@ function startOnboarding() {
         h('button', { class: 'btn link', type: 'button', onclick: () => { i -= 1; render(); } }, 'Geri'),
         h('div', { class: 'right' },
           s.skip ? h('button', { class: 'btn link', type: 'button', onclick: () => { d.jiraApiToken = ''; i += 1; render(); } }, s.skip) : null,
-          h('button', { class: 'btn', type: 'button', onclick: () => { if (i === steps.length - 1) finish(); else { i += 1; render(); } } }, s.next || 'Devam')))));
+          h('button', { class: 'btn', type: 'button', onclick: async () => {
+            if (i === steps.length - 1) return finish();
+            // Jira adımından sonra bağlantı kaydedilir ki sonraki adım panoları okuyabilsin.
+            if (s.save && d.jiraOk) { try { await saveDraft(d); d.jiraApiToken = ''; d.hasToken = state.config.hasToken; } catch (e) { err.replaceChildren(h('div', { class: 'msg bad' }, e.message)); return; } }
+            i += 1; render();
+          } }, s.next || 'Devam')))));
     box.scrollTop = 0;
   }
   box.hidden = false;
@@ -481,10 +561,20 @@ function issueItem(it, onClick, right) {
 
 const settingsNote = (text, label = 'Ayarları aç') => h('div', { class: 'note' }, text, h('div', {}, h('button', { class: 'btn plain sm', type: 'button', onclick: openSettings }, label)));
 
+function scopeOf() {
+  const sel = $('#scope');
+  const hasTeam = state.config.profile?.boards?.length > 0;
+  sel.querySelector('option[value="team"]').disabled = !hasTeam;
+  if (!sel.dataset.ready) { sel.value = store.get('qahere.scope') || (hasTeam ? 'team' : 'all'); sel.dataset.ready = '1'; }
+  if (sel.value === 'team' && !hasTeam) sel.value = 'all';
+  return sel.value;
+}
+
 async function loadList() {
   const list = $('#list');
   list.replaceChildren(h('div', { class: 'note' }, 'Yükleniyor…'));
-  $('#project').hidden = state.tab !== 'epics' || state.config.projects.length < 2;
+  const jiraTab = state.tab !== 'archive';
+  $('#sideFilter').hidden = !jiraTab || !state.config.jiraConfigured;
   try {
     if (state.tab === 'archive') {
       const { guides } = await api('/api/guides');
@@ -492,10 +582,21 @@ async function loadList() {
       list.replaceChildren(...guides.map((g) => issueItem({ key: g.key, summary: g.title }, () => openIssue(g.key, g.id), h('span', {}, fmtDate(g.createdAt)))));
       return;
     }
-    if (!state.config.jiraConfigured) return list.replaceChildren(settingsNote('Epic listesi için Jira\'yı bağla. Bağlamadan da yukarıya işin anahtarını yazıp açabilirsin.', 'Jira\'yı bağla'));
+    const what = state.tab === 'bugs' ? 'hata' : 'epic';
+    if (!state.config.jiraConfigured) return list.replaceChildren(settingsNote(`${what === 'hata' ? 'Hata' : 'Epic'} listesi için Jira'yı bağla. Bağlamadan da yukarıya işin anahtarını yazıp açabilirsin.`, 'Jira\'yı bağla'));
     if (!state.config.projects.length) return list.replaceChildren(settingsNote('Listelenecek proje seçilmedi.', 'Proje seç'));
-    const { epics } = await api(`/api/epics?project=${encodeURIComponent($('#project').value)}`);
-    list.replaceChildren(...(epics.length ? epics.map((e) => issueItem(e, () => openIssue(e.key))) : [h('div', { class: 'note' }, 'Bu projede epic bulunamadı.')]));
+    const scope = scopeOf();
+    // Takım kapsamı panolardan gelir; proje seçimi yalnızca "Projenin tümü" ve "Benim" için.
+    $('#project').hidden = scope === 'team' || state.config.projects.length < 2;
+    const q = new URLSearchParams({ kind: state.tab === 'bugs' ? 'bug' : 'epic', scope, project: $('#project').value || '' });
+    const { issues } = await api(`/api/list?${q}`);
+    if (issues.length) return list.replaceChildren(...issues.map((e) => issueItem(e, () => openIssue(e.key))));
+    const empty = {
+      team: `Takımının panolarında açık ${what} yok.`,
+      mine: `Sana atanan ya da senin açtığın açık ${what} yok.`,
+      all: `Bu projede ${what === 'hata' ? 'açık hata' : 'epic'} bulunamadı.`,
+    }[scope];
+    list.replaceChildren(h('div', { class: 'note' }, empty));
   } catch (e) {
     list.replaceChildren(h('div', { class: 'note' }, h('div', { class: 'msg bad', style: 'margin:0' }, e.message)));
   }
@@ -506,6 +607,7 @@ document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () 
   state.tab = t.dataset.tab;
   loadList();
 }));
+$('#scope').addEventListener('change', () => { store.set('qahere.scope', $('#scope').value); loadList(); });
 $('#project').addEventListener('change', loadList);
 
 $('#searchForm').addEventListener('submit', async (ev) => {
@@ -533,7 +635,7 @@ function showWelcome() {
   const hl = state.health;
   $('#main').replaceChildren(wrap(h('div', { class: 'hero' }, h('div', { class: 'hero-in' },
     h('h1', {}, 'Bir iş seç'),
-    h('p', {}, 'Soldan bir epic\'e tıkla ya da anahtarını yaz. Test etmeden önce okunacak rehber birkaç dakikada hazır olur.'),
+    h('p', {}, 'Soldan bir epic\'e ya da hataya tıkla, ya da anahtarını yaz. Test etmeden önce okunacak rehber birkaç dakikada hazır olur.'),
     hl && !hl.claude.ok ? h('div', { class: 'callout' }, h('div', {}, h('b', {}, 'Claude Code bulunamadı'), h('span', {}, 'Rehber üretimi onsuz çalışmaz.')), h('button', { class: 'btn sm', type: 'button', onclick: startOnboarding }, 'Kurulumu aç')) : null,
     !cfg.jiraConfigured ? h('div', { class: 'callout' }, h('div', {}, h('b', {}, 'Jira bağlı değil'), h('span', {}, 'Epic listesi ve başlıkla arama için bağla.')), h('button', { class: 'btn sm', type: 'button', onclick: openSettings }, 'Bağla')) : null,
   ))));
@@ -565,7 +667,9 @@ async function openIssue(key, guideId) {
 
   const gen = h('div', { class: 'card', id: 'genCard', hidden: hasGuide },
     h('h2', {}, hasGuide ? 'Rehberi yeniden oluştur' : 'QA rehberi'),
-    h('div', { class: 'sub' }, `${sourceNames.join(', ')} taranır${children.length ? ` · ${children.length} alt iş` : ''}. Genelde 3–8 dakika sürer ve Claude kullanım hakkından düşer.${hasGuide ? ' Mevcut rehber silinmez; önceki sürüm olarak kalır.' : ''}`),
+    h('div', { class: 'sub' }, issue.isBug
+      ? `Hata rehberi: yeniden üretme, düzeltmenin doğrulanması ve regresyon. ${sourceNames.join(', ')} taranır; epic rehberinden kısadır ve Claude kullanım hakkından düşer.${hasGuide ? ' Mevcut rehber silinmez; önceki sürüm olarak kalır.' : ''}`
+      : `${sourceNames.join(', ')} taranır${children.length ? ` · ${children.length} alt iş` : ''}. Genelde 3–8 dakika sürer ve Claude kullanım hakkından düşer.${hasGuide ? ' Mevcut rehber silinmez; önceki sürüm olarak kalır.' : ''}`),
     h('div', { class: 'gen' },
       h('label', { class: 'f' }, 'Ek not (isteğe bağlı)',
         h('textarea', { id: 'notes', placeholder: 'Örn. hata durumlarına ağırlık ver', maxlength: '600' })),

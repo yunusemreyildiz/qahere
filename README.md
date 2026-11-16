@@ -153,13 +153,17 @@ npm run doctor
 
 ## Kullanım
 
-1. Soldaki listeden bir **epic** seç ya da üstteki kutuya anahtarı, Jira linkini ya da başlığı yazıp Enter'a bas. Tek bir task için de rehber üretebilirsin.
+1. Soldaki listeden bir **epic** ya da **Hatalar** sekmesinden açık bir hata seç, ya da üstteki kutuya anahtarı, Jira linkini veya başlığı yazıp Enter'a bas. Tek bir task için de rehber üretebilirsin. Listenin üstündeki seçimle **Takımım** (seçtiğin panolar), **Benim** (sana atanan ya da senin açtığın) ya da **Projenin tümü** arasında geçersin.
 2. İstersen **Ek not** yaz (ör. "hata durumlarına ağırlık ver").
 3. **Rehber oluştur**'a bas. İlerleme satır satır görünür: hangi iş, hangi arama, hangi sayfa okunuyor. Genelde 3–8 dakika sürer.
 4. Bittiğinde rehber ekranın tamamını kaplar. Soldan bölümler arasında gez, test ettikçe maddeleri platform başına işaretle. İş başlığı "iOS -" ya da "Android -" ile başlıyorsa rehber yalnızca o platformu sorar; sol sütundaki **Platformlar**'dan değiştirebilirsin.
 5. **PDF indir** ile paylaş. Her rehber **Rehberlerim**'de saklanır; aynı iş için yeniden ürettiğinde eski sürümler araç çubuğundaki listeden seçilebilir.
 
 Aynı anda tek rehber üretilir; ikincisi için ilkinin bitmesini bekle ya da **İptal** et.
+
+**Hata kayıtları için rehber** daha kısadır ve başka bir şeye odaklanır: hatayı yeniden üretme adımları, beklenen ve gerçekleşen, düzeltmenin doğrulanması ve düzeltmenin bozmuş olabileceği komşu akışlar (regresyon). İşin türü Jira'da Bug, Defect ya da Hata içeriyorsa bu biçim kendiliğinden seçilir.
+
+**Sen kimsin?** İlk açılışta (ve Ayarlar'da) rolünü, test ettiğin platformları ve takımının Jira panolarını seçersin. Liste "Takımım" ile bu panolara göre süzülür; rol ve platformlar rehber yazılırken Claude'a da söylenir. Tek platform seçtiysen kontrol listesi o platform için yazılır.
 
 ### Hata kaydı açmak
 
@@ -238,7 +242,7 @@ Aynı değerleri `.env` dosyasıyla da verebilirsin (bkz. `.env.example`); aray�
 
 ## Rehberi kendine göre uyarlamak
 
-- **İçerik ve bölümler:** `prompts/rehber.md`. Bölüm eklemek, sıra değiştirmek, araştırma kurallarını sıkılaştırmak için. Sunucuyu yeniden başlatmaya gerek yok.
+- **İçerik ve bölümler:** `prompts/rehber.md` (ortak kurallar), `prompts/bolumler-ozellik.md` ve `prompts/bolumler-hata.md` (epic/iş ve hata rehberinin bölümleri). Bölüm eklemek, sıra değiştirmek, araştırma kurallarını sıkılaştırmak için. Sunucuyu yeniden başlatmaya gerek yok.
 - **Rehber ve PDF görünümü:** `templates/guide.css`.
 - **Uygulama içi rehber düzeni** (bölüm sırası, sol sütun, kapalı bölümler): `public/viewer.js` ve `public/viewer.css`.
 - **Kaynaklar:** `lib/generate.js` içindeki `READ_TOOLS`. **Yalnızca okuma araçları ekle.**
@@ -297,7 +301,7 @@ qahere/
 │   ├── device.js        Simülatör/emülatör bulma, ekran görüntüsü
 │   ├── pdf.js           Chrome/Edge ile PDF
 │   └── store.js         Rehber arşivi ve kontrol işaretleri (data/guides)
-├── prompts/rehber.md    Rehberin nasıl yazılacağını anlatan talimat
+├── prompts/rehber.md    Rehberin nasıl yazılacağını anlatan talimat (bölümler: bolumler-ozellik.md, bolumler-hata.md)
 ├── templates/guide.css  Rehberin ve PDF'in görünümü
 ├── public/              Arayüz (bağımlılıksız HTML/CSS/JS) ve rehber görüntüleyici
 ├── docs/                README görselleri

@@ -155,13 +155,17 @@ npm run doctor
 
 ## Usage
 
-1. Pick an **epic** from the list on the left, or type a key, a Jira link or a title in the search box and press Enter. Single tasks work too.
+1. Pick an **epic** from the list on the left or an open bug from the **Hatalar** (Bugs) tab, or type a key, a Jira link or a title in the search box and press Enter. Single tasks work too. The selector above the list switches between **Takımım** (My team: your chosen boards), **Benim** (Mine: assigned to you or reported by you) and **Projenin tümü** (Whole project).
 2. Optionally add a **note** (e.g. "focus on error cases").
 3. Press **Rehber oluştur** (Create guide). Progress shows line by line: which issue, which search, which page is being read. Usually takes 3–8 minutes.
 4. When it's done, the guide fills the screen. Move between sections on the left and mark items per platform as you test. If the issue title starts with "iOS -" or "Android -", the guide asks only for that platform; change it under **Platformlar** (Platforms) in the left column.
 5. Share it with **PDF indir** (Download PDF). Every guide is kept under **Rehberlerim** (My guides); if you regenerate one, older versions stay selectable in the toolbar.
 
 One guide is generated at a time; wait for the first to finish or **cancel** it.
+
+**Guides for bugs** are shorter and focus on something else: steps to reproduce, expected vs. actual, verifying the fix, and neighbouring flows the fix may have broken (regression). This format is picked automatically when the Jira issue type contains Bug, Defect or Hata.
+
+**Who are you?** On first run (and in Settings) you pick your role, the platforms you test and your team's Jira boards. "Takımım" filters the list by those boards; your role and platforms are also passed to Claude when the guide is written. If you picked a single platform, the checklist is written for that platform.
 
 ### Filing a bug
 
@@ -240,7 +244,7 @@ You can also provide the same values in a `.env` file (see `.env.example`); sett
 
 ## Customizing the guide
 
-- **Content and sections:** `prompts/rehber.md`. Add sections, change the order, tighten the research rules. No restart needed.
+- **Content and sections:** `prompts/rehber.md` (shared rules), `prompts/bolumler-ozellik.md` and `prompts/bolumler-hata.md` (sections of the feature and bug guides). Add sections, change the order, tighten the research rules. No restart needed.
 - **Guide and PDF look:** `templates/guide.css`.
 - **In-app guide layout** (section order, left column, collapsed sections): `public/viewer.js` and `public/viewer.css`.
 - **Sources:** `READ_TOOLS` in `lib/generate.js`. **Only add read-only tools.**
@@ -299,7 +303,7 @@ qahere/
 │   ├── device.js        Finding simulators/emulators, screenshots
 │   ├── pdf.js           PDF via Chrome/Edge
 │   └── store.js         Guide archive and checklist ticks (data/guides)
-├── prompts/rehber.md    Instructions for how the guide is written
+├── prompts/rehber.md    Instructions for how the guide is written (sections: bolumler-ozellik.md, bolumler-hata.md)
 ├── templates/guide.css  Guide and PDF styles
 ├── public/              UI (dependency-free HTML/CSS/JS) and the guide viewer
 ├── docs/                README images

@@ -3,10 +3,11 @@ import express from 'express';
 import { execFile } from 'node:child_process';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { jiraConfigured, jiraBaseUrl, listEpics, searchIssues, getIssueTree, parseIssueKey, testConnection, listIssueTypes, listLinkTypes, searchUsers } from './lib/jira.js';
+import { jiraConfigured, jiraBaseUrl, listEpics, searchIssues, getIssueTree, parseIssueKey, testConnection, listIssueTypes, listLinkTypes, searchUsers, listIssues, myself, listBoards } from './lib/jira.js';
 import { draftBug, fileBug, draftMockBody } from './lib/bug.js';
 import { proxymanStatus, listFlows, flowText, createMock, createMockFromFlow, setMockEnabled, deleteMock } from './lib/proxyman.js';
 import { getSettings, publicSettings, saveSettings } from './lib/config.js';
@@ -116,6 +117,18 @@ app.get('/api/epics', wrap(async (req, res) => {
   res.json({ epics: project ? await listEpics(project) : [] });
 }));
 
+app.get('/api/list', wrap(async (req, res) => {
+  const kind = req.query.kind === 'bug' ? 'bug' : 'epic';
+  const scope = ['team', 'mine', 'all'].includes(req.query.scope) ? req.query.scope : 'all';
+  const project = req.query.project || projects()[0];
+  res.json({ issues: await listIssues({ kind, scope, project, projects: projects() }) });
+}));
+app.get('/api/me', wrap(async (_req, res) => res.json(await myself())));
+app.get('/api/jira/boards', wrap(async (req, res) => {
+  const keys = String(req.query.projects || '').split(',').filter(Boolean);
+  res.json({ boards: await listBoards(keys.length ? keys : projects(), req.query.q) });
+}));
+
 app.get('/api/search', wrap(async (req, res) => {
   const q = String(req.query.q || '').trim();
   if (!q) return res.json({ issues: [] });
@@ -165,7 +178,8 @@ app.post('/api/guides', wrap(async (req, res) => {
   jobs.set(id, job);
   res.status(202).json({ jobId: id, key });
 
-  const jobDir = path.join(dataDir, 'jobs', id);
+  // Depo dışında çalışır: Claude Code üst klasörlerdeki CLAUDE.md'yi talimata eklemesin (token ve dikkat).
+  const jobDir = path.join(os.tmpdir(), 'qahere-jobs', id);
   try {
     const g = await generateGuide({ key, notes, jobDir, onEvent: (ev) => emit(job, ev) });
     job.child = g.child;

@@ -8,6 +8,8 @@
 
   // Bölüm türleri: eşleşme sırası önemli ("Akış ve durumlar" başlığı "durum" da içerir).
   const KINDS = [
+    { k: 'uretme', re: /yeniden üret|nasıl üretilir/i, tier: 'test' },
+    { k: 'koken', re: /kök neden/i, tier: 'detay' },
     { k: 'akis', re: /akış/i, tier: 'test' },
     { k: 'celiski', re: /çelişki|belirsiz/i, tier: 'test' },
     { k: 'kontrol', re: /kontrol/i, tier: 'test' },
@@ -21,7 +23,7 @@
     { k: 'kaynak', re: /kaynak/i, tier: 'detay' },
     { k: 'durum', re: /durum/i, tier: 'test' },
   ];
-  const ORDER = ['ozet', 'durum', 'hazirlik', 'akis', 'celiski', 'kontrol', 'platform', '?', 'kime', 'servis', 'otomasyon', 'harita', 'karar', 'kaynak'];
+  const ORDER = ['ozet', 'durum', 'hazirlik', 'uretme', 'akis', 'celiski', 'kontrol', 'platform', '?', 'kime', 'servis', 'otomasyon', 'harita', 'koken', 'karar', 'kaynak'];
   const clean = (t) => t.replace(/\s+/g, ' ').trim().replace(/^\d+[.)]\s*/, '');
 
   const cover = body.querySelector(':scope > .cover');

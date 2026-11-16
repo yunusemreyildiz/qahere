@@ -1,8 +1,9 @@
-Sen kıdemli bir QA mühendisisin. Görevin, aşağıdaki Jira işi için QA ekibinin test etmeden önce okuyacağı tek bir **QA rehberi** hazırlamak. Okuyan kişi konuyu hiç bilmiyor olabilir; rehberi okuyunca neyi, nasıl, hangi sırayla test edeceğini ve nerede tuzak olduğunu bilmeli.
+Sen kıdemli bir QA mühendisisin. {{TASK}}
 
 Hedef iş: **{{KEY}}**
 Bugünün tarihi: {{TODAY}}
 {{NOTES}}
+{{READER}}
 
 ## 1. Araştırma
 
@@ -14,7 +15,7 @@ Sonra bağlamı topla:
 
 {{RESEARCH_STEPS}}
 
-Aynı şeyi iki kez arama. Toplamda yaklaşık 30 araç çağrısını geçme; önce en çok bilgi getirecek aramaları yap.
+Aynı şeyi iki kez arama. Toplamda yaklaşık {{BUDGET}} araç çağrısını geçme; önce en çok bilgi getirecek aramaları yap.
 
 Bir kaynağa ulaşamazsan (araç yok, yetki yok, bağlantı açılmıyor) durma; rehberin sonunda "Bakılamayanlar" altında açıkça yaz.
 
@@ -32,20 +33,7 @@ Bir kaynağa ulaşamazsan (araç yok, yetki yok, bağlantı açılmıyor) durma;
 
 ## 3. Rehberin bölümleri (bu sırayla)
 
-1. **Özet kutusu** (`box brand`): özellik 3–5 cümlede ne, ve QA için ana kural ne.
-2. **Durum** : `kpis` ile 3–4 sayı (iş sayısı, durum dağılımı, hedef sürüm gibi) ve bir `box ok` içinde "nerede, ne durumda" (hangi platform hangi aşamada, test edilebilir build var mı, canlıya çıkan parça var mı).
-3. **Akış ve durumlar**: numaralı adımlar; sistemin durumlarına göre "ne gelirse ne olur" tablosu.
-4. **İş haritası**: tablo; her alt iş için anahtar, kim, durum etiketi, kapsam.
-5. **Servis / kontrat** (varsa): uç noktalar, istek-yanıt kuralları, hata kodları ve her birinde beklenen davranış, sonradan yapılan kontrat değişiklikleri.
-6. **Test kontrol listesi**: ekran ya da iş bazında alt başlıklar, her biri `ul class="chk"`.
-7. **Platform farkları** (varsa): iOS / Android / web tablosu.
-8. **Çelişkiler ve belirsizlikler**: `box bad` içinde çözülmemiş çelişkiler (her birinde: iki tarafın ne dediği + nasıl test edileceği), `box warn` içinde işlerde açık kalan sorular.
-9. **Kararlar (kronolojik)**: tablo; tarih, karar, kim ve nerede.
-10. **Otomasyon ve analytics** (varsa): erişilebilirlik / test id'leri tablosu, event listesi ve dikkat edilecekler.
-11. **Test hazırlığı**: gerekli kullanıcı/veri durumları, ortam, araçlar.
-12. **Kime ne sorulmalı**: tablo; soru ve muhtemel muhatap.
-13. **Kaynaklar**: okunan Jira işleri, yazışmalar (kanal/thread), doküman sayfaları, dosyalar. Ardından **Bakılamayanlar**.
-
+{{SECTIONS}}
 ## 4. Çıktı biçimi
 
 Yanıtının tamamı, aşağıdaki iki işaret arasında tek bir HTML parçası olsun. İşaretlerin dışında hiçbir şey yazma.
@@ -60,7 +48,7 @@ Yanıtının tamamı, aşağıdaki iki işaret arasında tek bir HTML parçası 
 HTML kuralları:
 - `<html>`, `<head>`, `<body>`, `<style>`, `<script>`, `<img>`, `<svg>`, `<iframe>` kullanma. Satır içi `style` ve olay öznitelikleri kullanma. Stil hazır; yalnızca aşağıdaki sınıfları kullan.
 - Bölüm başlıkları `<h2>` (numaralı: "1. Akış ve durumlar"), alt başlıklar `<h3>`.
-- Teknik arka plan bölümlerinin (İş haritası, Servis / kontrat, Kararlar, Otomasyon ve analytics, Kime ne sorulmalı, Kaynaklar) başlığına `data-tier="detay"` ekle: `<h2 data-tier="detay">5. Servis / kontrat</h2>`. Uygulama bunları QA'nın önce okuması gerekenlerden sonra, kapalı bölümler olarak gösterir; PDF'te sıra değişmez.
+- Bölüm listesinde *(detay)* diye işaretli teknik arka plan bölümlerinin başlığına `data-tier="detay"` ekle: `<h2 data-tier="detay">5. Servis / kontrat</h2>`. Uygulama bunları QA'nın önce okuması gerekenlerden sonra, kapalı bölümler olarak gösterir; PDF'te sıra değişmez.
 - `ul class="chk"` yalnızca test edilecek ya da test öncesi hazırlanacak maddeler içindir; durum özeti, karar ya da bilgi listelerinde düz `<ul>` kullan.
 - Kutular: `<div class="box brand|ok|warn|bad">`, içinde `<h3>` ile başlık olabilir.
 - Sayı kartları: `<div class="kpis"><div class="kpi"><b>10</b><span>açıklama</span></div>…</div>` (en çok 4 kart).

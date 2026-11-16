@@ -31,8 +31,16 @@
       <div class="side-controls">
         <div class="seg" role="tablist">
           <button class="tab active" data-tab="epics" role="tab" type="button">Epic'ler</button>
+          <button class="tab" data-tab="bugs" role="tab" type="button">Hatalar</button>
           <button class="tab" data-tab="archive" role="tab" type="button">Rehberlerim</button>
         </div>
+      </div>
+      <div class="side-filter" id="sideFilter">
+        <select id="scope" aria-label="Kimin işleri">
+          <option value="team">Takımım</option>
+          <option value="mine">Benim</option>
+          <option value="all">Projenin tümü</option>
+        </select>
         <select id="project" aria-label="Jira projesi"></select>
       </div>
       <div id="list" class="list"></div>
