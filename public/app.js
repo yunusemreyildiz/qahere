@@ -493,17 +493,21 @@ function renderGuides(key, guides, selectedId) {
   const stats = g.stats ? `${Math.round((g.stats.durationMs || 0) / 60000) || '<1'} dk · ${g.stats.toolCalls ?? '?'} kaynak sorgusu · ${g.model}` : g.model;
 
   const progress = h('div', { class: 'checks' });
-  const paintProgress = (n, note) => {
+  const paintProgress = (note) => {
     if (!g.checkTotal) return progress.replaceChildren();
+    const n = g.checks?.length || 0;
+    const failed = g.failed?.length || 0;
     const all = n === g.checkTotal;
     progress.classList.toggle('all', all);
     progress.replaceChildren(
       h('span', { class: 'cnum' }, h('b', {}, String(n)), ` / ${g.checkTotal} kontrol`),
       h('span', { class: 'cbar', role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': String(g.checkTotal), 'aria-valuenow': String(n) },
         h('i', { style: `width:${(n / g.checkTotal) * 100}%` })),
-      note ? h('span', { class: 'cnote bad' }, note) : h('span', { class: 'cnote' }, all ? 'Tamamı işaretli' : 'Otomatik kaydediliyor'));
+      note ? h('span', { class: 'cnote bad' }, note)
+        : failed ? h('span', { class: 'cnote bad' }, `${failed} madde kaldı`)
+          : h('span', { class: 'cnote' }, all ? 'Tamamı bitti' : 'Otomatik kaydediliyor'));
   };
-  paintProgress(g.checks?.length || 0);
+  paintProgress();
 
   // Rehber korumalı bir çerçeveye srcdoc ile gömülür: ayrı köken (allow-same-origin yok), dış istek yok.
   // Çalışabilen tek betik, her açılışta üretilen nonce'lu viewer.js; rehber içeriğindeki betikler CSP'ye takılır.
@@ -512,18 +516,18 @@ function renderGuides(key, guides, selectedId) {
     .then(([html, assets]) => { frame.srcdoc = withViewer(html, assets); })
     .catch((e) => frame.replaceWith(h('div', { class: 'msg bad' }, e.message)));
 
-  // Her tıklama hemen kaydedilir. keepalive: sekme o an kapansa da istek tamamlanır.
-  // rev: ağdan geç dönen eski bir isteğin yeni durumu ezmesini önler (sunucu her seferinde tüm listeyi alır).
+  // Her işaret hemen kaydedilir. keepalive: sekme o an kapansa da istek tamamlanır.
+  // rev: ağdan geç dönen eski bir isteğin yeni durumu ezmesini önler (sunucu her seferinde tüm durumu alır).
   let seq = 0;
   state.onChecks = (e) => {
-    if (e.source !== frame.contentWindow || e.data?.qa !== 'checks' || !Array.isArray(e.data.checks)) return;
-    const checks = e.data.checks.filter(Number.isInteger);
-    g.checks = checks;
-    paintProgress(checks.length);
+    if (e.source !== frame.contentWindow) return;
+    const msg = e.data || {};
+    if (msg.qa !== 'results' || typeof msg.results !== 'object' || !Array.isArray(msg.platforms)) return;
     const mine = ++seq;
-    fetch(`/api/guides/${g.key}/${g.id}/checks`, { method: 'PUT', keepalive: true, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ checks, rev: Date.now() * 1000 + (mine % 1000) }) })
-      .then((r) => { if (!r.ok) throw new Error(`${r.status}`); })
-      .catch((err) => { if (mine === seq) paintProgress(checks.length, `Kaydedilemedi (${err.message}). Yeniden tıkla.`); });
+    fetch(`/api/guides/${g.key}/${g.id}/results`, { method: 'PUT', keepalive: true, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ results: msg.results, platforms: msg.platforms, rev: Date.now() * 1000 + (mine % 1000) }) })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`${r.status}`))))
+      .then((rec) => { if (mine !== seq) return; Object.assign(g, { checks: rec.checks, failed: rec.failed, platforms: rec.platforms }); paintProgress(); })
+      .catch((err) => { if (mine === seq) paintProgress(`Kaydedilemedi (${err.message}). Yeniden işaretle.`); });
   };
 
   const del = h('button', { class: 'btn danger sm', type: 'button', onclick: async () => {

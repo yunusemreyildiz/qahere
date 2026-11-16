@@ -26,7 +26,7 @@
 Pick an epic or a task. qaHere reads the Jira issue and its sub-tasks, related Slack threads, and Notion and Confluence pages. Then it writes a guide in the order a tester needs it:
 
 - **What to know first:** a summary and the main rule for QA, which platform is at which stage, test preparation, flow steps, and **contradictions** between sources.
-- **Test checklist:** screen by screen, ticked with a click. Ticks are saved instantly; close the tab, come back, and they are still there. They also show up in the PDF.
+- **Test checklist:** screen by screen. Mark each item **Passed**, **Failed** or **Not applicable** separately for iOS and Android; once every platform is done, the item is struck through. Marks are saved instantly; close the tab, come back, and they are still there. They also show up in the PDF.
 - **Details:** service contract and error codes, automation IDs, a timeline of decisions, the issue map, who to ask what, and the sources that were read. Nothing is left out, but these sit in collapsed sections; you can run the tests without them.
 
 <table>
@@ -35,7 +35,7 @@ Pick an epic or a task. qaHere reads the Jira issue and its sub-tasks, related S
     <td width="50%"><img src="docs/screenshots/details.png" alt="Technical sections such as the service contract in collapsed rows"></td>
   </tr>
   <tr>
-    <td>Checklist: click to tick. The left column shows how many items are done in each section; <b>Go to next check</b> jumps to the first unticked item.</td>
+    <td>Checklist: pick a result from the iOS / Android button on the right of each item; the box on the left marks it passed everywhere. The left column shows how many items are done and how many failed in each section; <b>Go to next check</b> jumps to the first unfinished item.</td>
     <td>Technical details at the bottom, in collapsed rows. Open them when you get stuck.</td>
   </tr>
 </table>
@@ -148,7 +148,7 @@ npm run doctor
 1. Pick an **epic** from the list on the left, or type a key, a Jira link or a title in the search box and press Enter. Single tasks work too.
 2. Optionally add a **note** (e.g. "focus on error cases").
 3. Press **Rehber oluştur** (Create guide). Progress shows line by line: which issue, which search, which page is being read. Usually takes 3–8 minutes.
-4. When it's done, the guide fills the screen. Move between sections on the left and tick items as you test.
+4. When it's done, the guide fills the screen. Move between sections on the left and mark items per platform as you test. If the issue title starts with "iOS -" or "Android -", the guide asks only for that platform; change it under **Platformlar** (Platforms) in the left column.
 5. Share it with **PDF indir** (Download PDF). Every guide is kept under **Rehberlerim** (My guides); if you regenerate one, older versions stay selectable in the toolbar.
 
 One guide is generated at a time; wait for the first to finish or **cancel** it.

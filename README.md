@@ -24,7 +24,7 @@
 Bir epic ya da task seçersin. qaHere Jira işini ve alt işlerini, ilgili Slack yazışmalarını, Notion ve Confluence sayfalarını okur. Sonra QA'nın ihtiyaç duyduğu sırayla bir rehber yazar:
 
 - **Önce bilmen gerekenler:** özet ve QA için ana kural, hangi platform hangi aşamada, test hazırlığı, akış adımları, kaynaklar arasındaki **çelişkiler**.
-- **Test kontrol listesi:** ekran ekran, tıklayarak işaretlenen maddeler. İşaretler anında kaydedilir; sekmeyi kapatıp geri geldiğinde yerinde durur, PDF'e de yansır.
+- **Test kontrol listesi:** ekran ekran maddeler. Her maddeyi iOS ve Android için ayrı ayrı **Geçti**, **Kaldı** ya da **Uygulanmaz** diye işaretlersin; tüm platformlarda bitince maddenin üstü çizilir. İşaretler anında kaydedilir; sekmeyi kapatıp geri geldiğinde yerinde durur, PDF'e de yansır.
 - **Ayrıntılar:** servis kontratı ve hata kodları, otomasyon id'leri, kararların kronolojisi, iş haritası, kime ne sorulacağı, okunan kaynaklar. Hiçbiri atlanmaz, ama kapalı bölümlerde durur; testi bunları bilmeden de yürütebilirsin.
 
 <table>
@@ -33,7 +33,7 @@ Bir epic ya da task seçersin. qaHere Jira işini ve alt işlerini, ilgili Slack
     <td width="50%"><img src="docs/screenshots/details.png" alt="Ayrıntılar: servis kontratı gibi teknik bölümler kapalı satırlarda"></td>
   </tr>
   <tr>
-    <td>Kontrol listesi: tıkla, işaretlensin. Soldaki sütun her bölümde kaç maddenin bittiğini gösterir; <b>Sıradaki kontrole git</b> seni ilk işaretlenmemiş maddeye götürür.</td>
+    <td>Kontrol listesi: maddenin sağındaki iOS / Android düğmesinden sonucu seç; soldaki kutu "her yerde geçti" kısayoludur. Sol sütun her bölümde kaç maddenin bittiğini ve kaçının kaldığını gösterir; <b>Sıradaki kontrole git</b> seni ilk bitmemiş maddeye götürür.</td>
     <td>Teknik ayrıntılar en altta, kapalı satırlarda. Takıldığında aç.</td>
   </tr>
 </table>
@@ -146,7 +146,7 @@ npm run doctor
 1. Soldaki listeden bir **epic** seç ya da üstteki kutuya anahtarı, Jira linkini ya da başlığı yazıp Enter'a bas. Tek bir task için de rehber üretebilirsin.
 2. İstersen **Ek not** yaz (ör. "hata durumlarına ağırlık ver").
 3. **Rehber oluştur**'a bas. İlerleme satır satır görünür: hangi iş, hangi arama, hangi sayfa okunuyor. Genelde 3–8 dakika sürer.
-4. Bittiğinde rehber ekranın tamamını kaplar. Soldan bölümler arasında gez, test ettikçe maddeleri işaretle.
+4. Bittiğinde rehber ekranın tamamını kaplar. Soldan bölümler arasında gez, test ettikçe maddeleri platform başına işaretle. İş başlığı "iOS -" ya da "Android -" ile başlıyorsa rehber yalnızca o platformu sorar; sol sütundaki **Platformlar**'dan değiştirebilirsin.
 5. **PDF indir** ile paylaş. Her rehber **Rehberlerim**'de saklanır; aynı iş için yeniden ürettiğinde eski sürümler araç çubuğundaki listeden seçilebilir.
 
 Aynı anda tek rehber üretilir; ikincisi için ilkinin bitmesini bekle ya da **İptal** et.

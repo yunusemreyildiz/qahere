@@ -101,9 +101,33 @@
   const summary = sections.find((x) => x.k === 'ozet');
   summary?.el?.classList.add('lead');
 
-  // 4) Kontrol maddeleri
+  // 4) Kontrol maddeleri: her madde platform başına Geçti / Kaldı / Uygulanmaz taşır.
+  // Madde, rehberin tüm platformlarında geçti ya da uygulanmaz olunca biter (üstü çizilir).
+  const root = d.documentElement;
+  const ALL = ['ios', 'android'];
+  const PL = {
+    ios: { label: 'iOS', icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M16.4 12.7c0-2.3 1.9-3.4 2-3.5-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.2-2.8.9-3.5.9s-1.8-.8-3-.8c-1.5 0-3 .9-3.8 2.3-1.6 2.8-.4 7 1.2 9.3.8 1.1 1.7 2.4 2.9 2.3 1.2 0 1.6-.7 3-.7s1.8.7 3 .7c1.3 0 2.1-1.1 2.8-2.3.9-1.3 1.3-2.6 1.3-2.7 0 0-2.5-1-2.5-3.7zM14.1 5.9c.6-.8 1.1-1.9 1-3-.9 0-2.1.6-2.7 1.4-.6.7-1.1 1.8-1 2.9 1 .1 2.1-.5 2.7-1.3z"/></svg>' },
+    android: { label: 'Android', icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3.5 18a8.5 8.5 0 0 1 17 0z"/><path d="M7.2 10.8 5.4 7.6M16.8 10.8l1.8-3.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="8.6" cy="14.6" r="1.15" fill="#fff"/><circle cx="15.4" cy="14.6" r="1.15" fill="#fff"/></svg>' },
+  };
+  const OUT = { pass: 'Geçti', fail: 'Kaldı', na: 'Uygulanmaz' };
+  const MARK = { pass: '✓', fail: '✕', na: '–' };
+  let platforms = (root.dataset.platforms || '').split(/\s+/).filter((p) => ALL.includes(p));
+  if (!platforms.length) platforms = [...ALL];
+
   const items = [...d.querySelectorAll('.chk li[data-c]')];
-  const isDone = (li) => li.hasAttribute('data-done');
+  const results = {};
+  for (const li of items) {
+    li.querySelector(':scope > .pf')?.remove(); // PDF/yeni sekme etiketi; burada yerine düğmeler gelir
+    const r = {};
+    for (const p of ALL) if (OUT[li.dataset[p]]) r[p] = li.dataset[p];
+    if (Object.keys(r).length) results[li.dataset.c] = r;
+  }
+  const res = (li) => results[li.dataset.c] || {};
+  const isDone = (li) => platforms.every((p) => res(li)[p] === 'pass' || res(li)[p] === 'na');
+  const isFail = (li) => platforms.some((p) => res(li)[p] === 'fail');
+  const isOpen = (li) => platforms.some((p) => !res(li)[p]);
+  const textOf = (li) => [...li.childNodes].filter((n) => !(n.nodeType === 1 && n.matches('.pfc, .tick'))).map((n) => n.textContent).join('').replace(/\s+/g, ' ').trim();
+
   const groupsOf = (sec) => {
     const out = [];
     let g = null;
@@ -119,6 +143,7 @@
   const meter = make('div', 'meter');
   const num = make('b');
   const of = make('span');
+  const failN = make('span', 'failn');
   const bar = make('div', 'bar');
   const fill = make('i');
   bar.append(fill);
@@ -127,10 +152,27 @@
   const only = make('label', 'only');
   const onlyBox = make('input');
   onlyBox.type = 'checkbox';
-  only.append(onlyBox, ' Yalnız işaretlenmemişler');
+  only.append(onlyBox, ' Yalnız bitmemişler');
   const nums = make('div', 'nums');
-  nums.append(num, of);
-  meter.append(nums, bar, next, only);
+  nums.append(num, of, failN);
+  const plRow = make('div', 'plrow');
+  plRow.append(make('span', 'pll', 'Platformlar'));
+  const plBtns = ALL.map((p) => {
+    const b = make('button', `plt p-${p}`);
+    b.type = 'button';
+    b.innerHTML = PL[p].icon;
+    b.append(PL[p].label);
+    b.addEventListener('click', () => {
+      const on = platforms.includes(p);
+      if (on && platforms.length === 1) return; // en az bir platform kalır
+      platforms = ALL.filter((x) => (x === p ? !on : platforms.includes(x)));
+      root.dataset.platforms = platforms.join(' ');
+      items.forEach(paintItem); paint(); report();
+    });
+    plRow.append(b);
+    return b;
+  });
+  meter.append(nums, bar, plRow, next, only);
   if (items.length) rail.append(meter);
 
   const counters = [];
@@ -183,43 +225,157 @@
 
   const paint = () => {
     const done = items.filter(isDone).length;
+    const failed = items.filter(isFail).length;
     num.textContent = String(done);
     of.textContent = ` / ${items.length} kontrol`;
+    failN.textContent = failed ? `${failed} kaldı` : '';
     fill.style.width = `${items.length ? (done / items.length) * 100 : 0}%`;
     meter.classList.toggle('all', items.length > 0 && done === items.length);
     next.disabled = done === items.length;
+    plBtns.forEach((b, i) => b.setAttribute('aria-pressed', String(platforms.includes(ALL[i]))));
     for (const c of counters) {
       const k = c.items.filter(isDone).length;
+      const f = c.items.filter(isFail).length;
       c.el.textContent = `${k}/${c.items.length}`;
       c.el.classList.toggle('all', k === c.items.length);
+      c.el.classList.toggle('warn', f > 0);
+      c.el.title = f ? `${f} madde kaldı` : '';
     }
   };
 
-  const mark = (li) => li.setAttribute('aria-checked', isDone(li) ? 'true' : 'false');
-  for (const li of items) { li.tabIndex = 0; li.setAttribute('role', 'checkbox'); mark(li); }
-  const report = () => parent.postMessage({ qa: 'checks', checks: items.filter(isDone).map((li) => Number(li.dataset.c)) }, '*');
-  const toggle = (li) => { li.toggleAttribute('data-done'); mark(li); paint(); report(); };
+  // Madde düzeni: solda "hepsi geçti" kutusu, sağda platform düğmeleri.
+  const chips = new Map();
+  for (const li of items) {
+    const tick = make('button', 'tick');
+    tick.type = 'button';
+    li.prepend(tick);
+    const box = make('span', 'pfc');
+    const map = {};
+    for (const p of ALL) {
+      const b = make('button', `pl p-${p}`);
+      b.type = 'button';
+      b.dataset.p = p;
+      b.setAttribute('aria-haspopup', 'menu');
+      b.innerHTML = PL[p].icon;
+      b.append(make('span', 'mk'));
+      b.addEventListener('click', (e) => { e.stopPropagation(); openMenu(li, p, b); });
+      map[p] = b;
+      box.append(b);
+    }
+    chips.set(li, { tick, map });
+    li.append(box);
+    tick.addEventListener('click', (e) => { e.stopPropagation(); toggleAll(li); });
+  }
+
+  function paintItem(li) {
+    const r = res(li);
+    li.toggleAttribute('data-done', isDone(li));
+    li.toggleAttribute('data-fail', isFail(li));
+    li.style.setProperty('--pls', String(platforms.length));
+    const { tick, map } = chips.get(li);
+    tick.setAttribute('aria-pressed', String(isDone(li)));
+    tick.setAttribute('aria-label', isDone(li) ? 'Bitti; işaretleri kaldır' : 'Tüm platformlarda geçti olarak işaretle');
+    for (const p of ALL) {
+      const b = map[p];
+      b.hidden = !platforms.includes(p);
+      const st = r[p] || '';
+      b.dataset.s = st;
+      b.querySelector('.mk').textContent = st ? MARK[st] : '';
+      const label = `${PL[p].label}: ${st ? OUT[st].toLocaleLowerCase('tr') : 'işaretlenmedi'}`;
+      b.setAttribute('aria-label', label);
+      b.title = label;
+    }
+  }
+
+  const report = () => parent.postMessage({ qa: 'results', platforms, results }, '*');
+  const set = (li, p, v) => {
+    const n = li.dataset.c;
+    const r = { ...(results[n] || {}) };
+    if (v) r[p] = v; else delete r[p];
+    if (Object.keys(r).length) results[n] = r; else delete results[n];
+  };
+  const update = (li) => { paintItem(li); paint(); report(); };
+  function toggleAll(li) {
+    const allPass = platforms.every((p) => res(li)[p] === 'pass' || res(li)[p] === 'na') && platforms.some((p) => res(li)[p] === 'pass');
+    for (const p of platforms) {
+      if (allPass) { if (res(li)[p] === 'pass') set(li, p, null); }
+      else if (res(li)[p] !== 'na') set(li, p, 'pass');
+    }
+    update(li);
+  }
+
+  // Platform menüsü
+  const menu = make('div', 'pmenu');
+  menu.setAttribute('role', 'menu');
+  menu.hidden = true;
+  body.append(menu);
+  let menuFor = null;
+  const closeMenu = (focus) => {
+    if (menu.hidden) return;
+    menu.hidden = true;
+    if (focus && menuFor) menuFor.btn.focus();
+    menuFor = null;
+  };
+  function openMenu(li, p, btn) {
+    if (menuFor && menuFor.btn === btn) return closeMenu(true);
+    menuFor = { li, p, btn };
+    const cur = res(li)[p] || '';
+    menu.replaceChildren(make('div', 'pmh', PL[p].label));
+    const opts = [['pass', 'Geçti'], ['fail', 'Kaldı'], ['na', 'Bu platformda uygulanmaz']];
+    if (cur) opts.push(['', 'İşareti kaldır']);
+    for (const [v, label] of opts) {
+      const o = make('button', `pmi ${v ? `o-${v}` : 'o-clear'}`);
+      o.type = 'button';
+      o.setAttribute('role', v ? 'menuitemradio' : 'menuitem');
+      if (v) o.setAttribute('aria-checked', String(cur === v));
+      o.append(make('span', 'pmk', v ? MARK[v] : ''), label);
+      o.addEventListener('click', (e) => {
+        e.stopPropagation();
+        set(li, p, v || null);
+        update(li);
+        if (v === 'fail') parent.postMessage({ qa: 'fail', c: Number(li.dataset.c), platform: p, text: textOf(li) }, '*');
+        closeMenu(true);
+      });
+      menu.append(o);
+    }
+    menu.hidden = false;
+    const r = btn.getBoundingClientRect();
+    const w = menu.offsetWidth;
+    menu.style.left = `${Math.max(8, Math.min(r.right - w, innerWidth - w - 8)) + scrollX}px`;
+    menu.style.top = `${r.bottom + 6 + scrollY}px`;
+    menu.querySelector('[aria-checked="true"]')?.focus() || menu.querySelector('.pmi')?.focus();
+  }
+  menu.addEventListener('keydown', (e) => {
+    const list = [...menu.querySelectorAll('.pmi')];
+    const i = list.indexOf(d.activeElement);
+    if (e.key === 'Escape') { e.preventDefault(); closeMenu(true); }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); list[(i + 1) % list.length].focus(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); list[(i - 1 + list.length) % list.length].focus(); }
+    else if (e.key === 'Tab') closeMenu(false);
+  });
+  d.addEventListener('click', (e) => { if (!menu.hidden && !menu.contains(e.target)) closeMenu(false); });
+  addEventListener('resize', () => closeMenu(false));
+
+  // Maddenin metnine tıklamak da "hepsi geçti" kısayoludur (bağlantı ve metin seçimi hariç).
   d.addEventListener('click', (e) => {
     const li = e.target.closest('.chk li[data-c]');
-    if (!li || e.target.closest('a') || String(getSelection()).trim()) return;
-    toggle(li);
-  });
-  d.addEventListener('keydown', (e) => {
-    const li = e.target.closest && e.target.closest('.chk li[data-c]');
-    if (li && (e.key === ' ' || e.key === 'Enter')) { e.preventDefault(); toggle(li); }
+    if (!li || e.target.closest('a, button') || String(getSelection()).trim()) return;
+    toggleAll(li);
   });
   next.addEventListener('click', () => {
-    const li = items.find((x) => !isDone(x));
+    const li = items.find(isOpen) || items.find((x) => !isDone(x));
     if (!li) return;
     const det = li.closest('details');
     if (det) det.open = true;
     li.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'center' });
-    li.focus({ preventScroll: true });
+    const first = platforms.find((p) => !res(li)[p]) || platforms[0];
+    chips.get(li).map[first].focus({ preventScroll: true });
     li.classList.remove('flash');
     void li.offsetWidth;
     li.classList.add('flash');
   });
-  onlyBox.addEventListener('change', () => d.documentElement.classList.toggle('only-open', onlyBox.checked));
+  onlyBox.addEventListener('change', () => root.classList.toggle('only-open', onlyBox.checked));
+  items.forEach(paintItem);
   paint();
 
   // 6) Hangi bölümdeyim

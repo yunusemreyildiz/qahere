@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { jiraConfigured, jiraBaseUrl, listEpics, searchIssues, getIssueTree, parseIssueKey, testConnection } from './lib/jira.js';
 import { getSettings, publicSettings, saveSettings } from './lib/config.js';
 import { generateGuide } from './lib/generate.js';
-import { saveGuide, listGuides, deleteGuide, guidePaths, dataDir, setChecks, guideHtml } from './lib/store.js';
+import { saveGuide, listGuides, deleteGuide, guidePaths, dataDir, setResults, guideHtml } from './lib/store.js';
 import { findBrowser, renderPdf } from './lib/pdf.js';
 import { checkUpdate, applyUpdate, RESTART_CODE } from './lib/update.js';
 
@@ -214,13 +214,15 @@ app.delete('/api/guides/:key/:id', wrap(async (req, res) => {
   res.json({ ok: true });
 }));
 
-// Kontrol listesinde işaretlenen maddeler (sıra numaraları). PDF bir sonraki indirmede bunlarla yeniden üretilir.
-app.put('/api/guides/:key/:id/checks', wrap(async (req, res) => {
+// Kontrol maddelerinin platform sonuçları. PDF bir sonraki indirmede bunlarla yeniden üretilir.
+app.put('/api/guides/:key/:id/results', wrap(async (req, res) => {
   const p = guidePaths(req.params.key, req.params.id);
   if (!fs.existsSync(p.meta)) return res.status(404).json({ error: 'Rehber bulunamadı.' });
-  if (!Array.isArray(req.body?.checks)) return res.status(400).json({ error: 'checks bir dizi olmalı.' });
-  const rec = await setChecks(req.params.key, req.params.id, req.body.checks.slice(0, 2000), Number(req.body.rev));
-  res.json({ checks: rec.checks, checkTotal: rec.checkTotal });
+  const { results, platforms } = req.body || {};
+  if (results != null && (typeof results !== 'object' || Array.isArray(results))) return res.status(400).json({ error: 'results bir nesne olmalı.' });
+  if (platforms != null && !Array.isArray(platforms)) return res.status(400).json({ error: 'platforms bir dizi olmalı.' });
+  const rec = await setResults(req.params.key, req.params.id, { results, platforms }, Number(req.body.rev));
+  res.json({ checks: rec.checks, failed: rec.failed, checkTotal: rec.checkTotal, platforms: rec.platforms });
 }));
 
 app.get('/guides/:key/:id.html', wrap(async (req, res) => {
