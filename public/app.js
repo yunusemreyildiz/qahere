@@ -27,6 +27,29 @@ function icon(name, size = 18) {
   return span.firstChild;
 }
 
+// Maskot: "burada!" diye elini kaldıran rehber sayfası. Gövde vurgu rengini (currentColor) alır.
+const MASCOT = `<svg viewBox="0 0 32 32" aria-hidden="true">
+  <g class="arm" fill="currentColor"><path d="M9.6 20.5Q5.6 17 5.4 10.5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+    <ellipse cx="5.2" cy="7.4" rx="2.6" ry="3.2" transform="rotate(-12 5.2 7.4)"/><circle cx="7.7" cy="9" r="1.15"/></g>
+  <path d="M25 23q3 1.2 3.4 4.6" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+  <path d="M11 9h9l6 6v13a3 3 0 0 1-3 3H11a3 3 0 0 1-3-3V12a3 3 0 0 1 3-3z" fill="currentColor"/>
+  <circle cx="11.6" cy="23.6" r="1.4" fill="#fff" fill-opacity=".28"/><circle cx="22.8" cy="23.6" r="1.4" fill="#fff" fill-opacity=".28"/>
+  <path d="M20 9v4a2 2 0 0 0 2 2h4" fill="#fff" fill-opacity=".38"/>
+  <circle cx="14" cy="20" r="2.1" fill="#fff"/><circle cx="20.4" cy="20" r="2.1" fill="#fff"/>
+  <circle cx="13.4" cy="19.3" r="1" fill="#16191c"/><circle cx="19.8" cy="19.3" r="1" fill="#16191c"/>
+  <path d="M15.3 24.4q1.9 1.7 3.8 0" fill="none" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/>
+</svg>`;
+function mascot(cls) {
+  const span = h('span', { class: cls });
+  span.innerHTML = MASCOT;
+  return span;
+}
+function setFavicon(color) {
+  let link = document.querySelector('link[rel=icon]');
+  if (!link) { link = h('link', { rel: 'icon', type: 'image/svg+xml' }); document.head.append(link); }
+  link.href = `data:image/svg+xml,${encodeURIComponent(MASCOT.replace('<svg ', `<svg xmlns="http://www.w3.org/2000/svg" style="color:${color}" `))}`;
+}
+
 async function api(url, opts) {
   const res = await fetch(url, opts);
   const data = await res.json().catch(() => ({}));
@@ -54,6 +77,7 @@ const MODELS = [
 function applyConfig(cfg) {
   state.config = cfg;
   document.documentElement.style.setProperty('--accent', cfg.accent);
+  if (/^#[0-9a-f]{3,8}$/i.test(cfg.accent)) setFavicon(cfg.accent);
   $('#ws').textContent = cfg.workspace || '';
   document.title = cfg.workspace ? `qaHere · ${cfg.workspace}` : 'qaHere';
   const sel = $('#project');
@@ -295,7 +319,7 @@ function startOnboarding() {
     err.replaceChildren();
     if (s.hero) {
       box.replaceChildren(h('div', { class: 'ob' },
-        h('div', { class: 'ob-mark' }),
+        mascot('ob-mark'),
         h('h1', {}, 'qaHere\'a hoş geldin'),
         h('p', { class: 'lead' }, 'Bir Jira işini seç; test etmeden önce okunacak rehberi senin yerine hazırlasın.'),
         h('div', { class: 'feat' }, h('i', {}, icon('doc')), h('div', {}, h('b', {}, 'Tek rehberde her şey'), h('span', {}, 'Akış, kontrol listesi, platform farkları, açık sorular ve kime ne sorulacağı.'))),
@@ -394,6 +418,7 @@ async function openIssue(key, guideId) {
   history.replaceState(null, '', `#${key}`);
   document.querySelectorAll('.item').forEach((el) => el.classList.toggle('active', el.dataset.key === key));
   const main = $('#main');
+  main.classList.remove('gmode');
   main.replaceChildren(wrap(h('div', { class: 'note' }, `${key} yükleniyor…`)));
   let data;
   try { data = await api(`/api/issues/${key}`); }
@@ -401,35 +426,42 @@ async function openIssue(key, guideId) {
   if (state.current !== key) return;
   const { issue, children, guides, limited } = data;
   const sourceNames = ['Jira', ...SOURCES.filter((s) => state.config.sources[s.key]).map((s) => s.name)];
+  const hasGuide = guides.length > 0;
 
   const head = h('div', { class: 'ihead' },
     h('div', { class: 'eyebrow' },
       issue.url ? h('a', { href: issue.url, target: '_blank', rel: 'noopener' }, issue.key) : h('b', {}, issue.key),
       issue.type ? h('span', {}, issue.type) : null,
       issue.status ? h('span', { class: `st ${issue.statusCategory}` }, issue.status) : null),
-    h('h1', { class: 'title' }, issue.summary || (limited ? key : key)),
+    h('h1', { class: 'title' }, issue.summary || key),
     h('div', { class: 'sub' }, limited ? 'Jira bağlı olmadığı için iş ayrıntıları burada gösterilmiyor; rehber yine de üretilebilir.'
       : [issue.assignee && `Atanan: ${issue.assignee}`, issue.reporter && `Raporlayan: ${issue.reporter}`, issue.parent && `Üst iş: ${issue.parent.key}`].filter(Boolean).join('  ·  ')));
 
-  const gen = h('div', { class: 'card' },
-    h('h2', {}, 'QA rehberi'),
-    h('div', { class: 'sub' }, `${sourceNames.join(', ')} taranır${children.length ? ` · ${children.length} alt iş` : ''}. Genelde 3–8 dakika sürer ve Claude kullanım hakkından düşer.`),
+  const gen = h('div', { class: 'card', id: 'genCard', hidden: hasGuide },
+    h('h2', {}, hasGuide ? 'Rehberi yeniden oluştur' : 'QA rehberi'),
+    h('div', { class: 'sub' }, `${sourceNames.join(', ')} taranır${children.length ? ` · ${children.length} alt iş` : ''}. Genelde 3–8 dakika sürer ve Claude kullanım hakkından düşer.${hasGuide ? ' Mevcut rehber silinmez; önceki sürüm olarak kalır.' : ''}`),
     h('div', { class: 'gen' },
       h('label', { class: 'f' }, 'Ek not (isteğe bağlı)',
         h('textarea', { id: 'notes', placeholder: 'Örn. hata durumlarına ağırlık ver', maxlength: '600' })),
-      h('button', { class: 'btn', id: 'genBtn', type: 'button', onclick: () => startJob(key) }, guides.length ? 'Yeniden oluştur' : 'Rehber oluştur')),
+      h('button', { class: 'btn', id: 'genBtn', type: 'button', onclick: () => startJob(key) }, hasGuide ? 'Yeniden oluştur' : 'Rehber oluştur')),
     h('div', { id: 'progress' }));
 
-  const kids = children.length ? h('div', { class: 'card' },
-    h('h2', {}, 'Alt işler'), h('div', { class: 'sub' }, `${children.length} iş`),
-    h('div', { class: 'tablewrap' }, h('table', {},
-      h('thead', {}, h('tr', {}, ...['Anahtar', 'Başlık', 'Atanan', 'Durum'].map((t) => h('th', {}, t)))),
-      h('tbody', {}, ...children.map((c) => h('tr', {},
-        h('td', {}, h('a', { href: c.url, target: '_blank', rel: 'noopener' }, c.key)),
-        h('td', {}, c.summary), h('td', {}, c.assignee || '—'),
-        h('td', {}, h('span', { class: `st ${c.statusCategory}` }, c.status)))))))) : null;
+  const kidsTable = () => h('div', { class: 'tablewrap' }, h('table', {},
+    h('thead', {}, h('tr', {}, ...['Anahtar', 'Başlık', 'Atanan', 'Durum'].map((t) => h('th', {}, t)))),
+    h('tbody', {}, ...children.map((c) => h('tr', {},
+      h('td', {}, h('a', { href: c.url, target: '_blank', rel: 'noopener' }, c.key)),
+      h('td', {}, c.summary), h('td', {}, c.assignee || '—'),
+      h('td', {}, h('span', { class: `st ${c.statusCategory}` }, c.status)))))));
+  state.kids = children.length ? { count: children.length, render: kidsTable } : null;
 
-  main.replaceChildren(wrap(head, gen, h('div', { id: 'viewer' }), kids));
+  if (hasGuide) {
+    // Rehber varsa ekranın tamamı ona ayrılır: üstte ince iş şeridi + araç çubuğu, altında rehber.
+    main.classList.add('gmode');
+    main.replaceChildren(h('div', { class: 'gtop' }, head, gen), h('div', { id: 'viewer', class: 'gview' }));
+  } else {
+    const kids = children.length ? h('div', { class: 'card' }, h('h2', {}, 'Alt işler'), h('div', { class: 'sub' }, `${children.length} iş`), kidsTable()) : null;
+    main.replaceChildren(wrap(head, gen, h('div', { id: 'viewer' }), kids));
+  }
   main.scrollTop = 0;
   renderGuides(key, guides, guideId || guides[0]?.id);
 
@@ -445,31 +477,88 @@ function renderGuides(key, guides, selectedId) {
   const g = guides.find((x) => x.id === selectedId) || guides[0];
   const base = `/guides/${g.key}/${g.id}`;
   const stats = g.stats ? `${Math.round((g.stats.durationMs || 0) / 60000) || '<1'} dk · ${g.stats.toolCalls ?? '?'} kaynak sorgusu · ${g.model}` : g.model;
-  // Rehber, betik çalıştıramayan korumalı bir çerçeveye srcdoc ile gömülür (ayrı sayfa isteği yok).
-  const frame = h('iframe', { class: 'viewer', title: `${g.key} QA rehberi`, sandbox: 'allow-popups allow-popups-to-escape-sandbox' });
-  fetch(`${base}.html`).then((r) => (r.ok ? r.text() : Promise.reject(new Error('Rehber yüklenemedi.'))))
-    .then((html) => { frame.srcdoc = html; })
+
+  const progress = h('div', { class: 'checks' });
+  const paintProgress = (n, note) => {
+    if (!g.checkTotal) return progress.replaceChildren();
+    const all = n === g.checkTotal;
+    progress.classList.toggle('all', all);
+    progress.replaceChildren(
+      h('span', { class: 'cnum' }, h('b', {}, String(n)), ` / ${g.checkTotal} kontrol`),
+      h('span', { class: 'cbar', role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': String(g.checkTotal), 'aria-valuenow': String(n) },
+        h('i', { style: `width:${(n / g.checkTotal) * 100}%` })),
+      note ? h('span', { class: 'cnote bad' }, note) : h('span', { class: 'cnote' }, all ? 'Tamamı işaretli' : 'Otomatik kaydediliyor'));
+  };
+  paintProgress(g.checks?.length || 0);
+
+  // Rehber korumalı bir çerçeveye srcdoc ile gömülür: ayrı köken (allow-same-origin yok), dış istek yok.
+  // Çalışabilen tek betik, her açılışta üretilen nonce'lu viewer.js; rehber içeriğindeki betikler CSP'ye takılır.
+  const frame = h('iframe', { class: 'viewer', title: `${g.key} QA rehberi`, sandbox: 'allow-scripts allow-popups allow-popups-to-escape-sandbox' });
+  Promise.all([fetch(`${base}.html`, { cache: 'no-store' }).then((r) => (r.ok ? r.text() : Promise.reject(new Error('Rehber yüklenemedi.')))), viewerAssets()])
+    .then(([html, assets]) => { frame.srcdoc = withViewer(html, assets); })
     .catch((e) => frame.replaceWith(h('div', { class: 'msg bad' }, e.message)));
+
+  // Her tıklama hemen kaydedilir. keepalive: sekme o an kapansa da istek tamamlanır.
+  // rev: ağdan geç dönen eski bir isteğin yeni durumu ezmesini önler (sunucu her seferinde tüm listeyi alır).
+  let seq = 0;
+  state.onChecks = (e) => {
+    if (e.source !== frame.contentWindow || e.data?.qa !== 'checks' || !Array.isArray(e.data.checks)) return;
+    const checks = e.data.checks.filter(Number.isInteger);
+    g.checks = checks;
+    paintProgress(checks.length);
+    const mine = ++seq;
+    fetch(`/api/guides/${g.key}/${g.id}/checks`, { method: 'PUT', keepalive: true, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ checks, rev: Date.now() * 1000 + (mine % 1000) }) })
+      .then((r) => { if (!r.ok) throw new Error(`${r.status}`); })
+      .catch((err) => { if (mine === seq) paintProgress(checks.length, `Kaydedilemedi (${err.message}). Yeniden tıkla.`); });
+  };
+
   const del = h('button', { class: 'btn danger sm', type: 'button', onclick: async () => {
     if (del.dataset.armed !== '1') { del.dataset.armed = '1'; del.textContent = 'Silmeyi onayla'; setTimeout(() => { del.dataset.armed = ''; del.textContent = 'Sil'; }, 4000); return; }
     await api(`/api/guides/${g.key}/${g.id}`, { method: 'DELETE' });
-    const r = await api(`/api/guides?key=${g.key}`);
-    renderGuides(key, r.guides); if (state.tab === 'archive') loadList();
+    if (state.tab === 'archive') loadList();
+    openIssue(key);
   } }, 'Sil');
-  box.replaceChildren(h('div', { class: 'card' },
+  const regen = h('button', { class: 'btn plain sm', type: 'button', onclick: () => {
+    const card = $('#genCard');
+    if (!card) return;
+    card.hidden = !card.hidden;
+    if (!card.hidden) $('#notes')?.focus();
+  } }, 'Yeniden oluştur');
+  const version = guides.length > 1 ? h('select', { class: 'ver', 'aria-label': 'Rehber sürümü', onchange: (e) => renderGuides(key, guides, e.target.value) },
+    ...guides.map((x, i) => { const o = h('option', { value: x.id }, `${fmtDate(x.createdAt)}${i === 0 ? ' (son)' : ''}`); if (x.id === g.id) o.selected = true; return o; })) : null;
+  const kidsBtn = state.kids ? h('button', { class: 'btn plain sm', type: 'button', onclick: () => openSheet(`Alt işler (${state.kids.count})`, state.kids.render(), [h('button', { class: 'btn sm', type: 'button', onclick: closeSheet }, 'Kapat')]) }, `Alt işler (${state.kids.count})`) : null;
+
+  box.replaceChildren(
     h('div', { class: 'gbar' },
-      h('div', {}, h('h2', {}, g.title), h('div', { class: 'sub' }, `${fmtDate(g.createdAt)} · ${stats}`)),
+      h('div', { class: 'gtitle' }, h('h2', {}, g.title), h('div', { class: 'sub' }, `${fmtDate(g.createdAt)} · ${stats}`)),
+      progress,
       h('div', { class: 'acts' },
-        del,
-        h('a', { class: 'btn plain sm', href: `${base}.html`, target: '_blank', rel: 'noopener' }, 'Yeni sekmede aç'),
-        h('a', { class: 'btn sm', href: `${base}.pdf` }, 'PDF indir'))),
+        version, kidsBtn, regen,
+        h('a', { class: 'btn plain sm', href: `${base}.html`, target: '_blank', rel: 'noopener', title: 'Tam rapor, düz sırayla' }, 'Yeni sekmede aç'),
+        h('a', { class: 'btn sm', href: `${base}.pdf` }, 'PDF indir'),
+        del)),
     ...denialNotes(g),
-    frame,
-    guides.length > 1 ? h('div', { style: 'margin-top:22px' }, h('h2', {}, 'Önceki sürümler'),
-      h('div', { class: 'hist' }, ...guides.filter((x) => x.id !== g.id).map((x) =>
-        h('button', { class: 'item', type: 'button', onclick: () => renderGuides(key, guides, x.id) }, h('span', {}, x.title), h('span', {}, fmtDate(x.createdAt)))))) : null,
-  ));
+    frame);
 }
+
+// Rehber içi düzen ve işaretleme: public/viewer.{js,css}. Bir kez alınır, her açılışta rehbere satır içi eklenir.
+let viewerAssetsP;
+const viewerAssets = () => (viewerAssetsP ||= Promise.all(['/viewer.js', '/viewer.css'].map((u) => fetch(u).then((r) => {
+  if (!r.ok) throw new Error('Görüntüleyici dosyaları yüklenemedi.');
+  return r.text();
+})))).catch((e) => { viewerAssetsP = null; throw e; });
+
+function withViewer(html, [js, css]) {
+  // CSP'siz (beklenmeyen biçimdeki) bir rehbere betik eklenmez; düz hâliyle gösterilir.
+  if (!/<meta http-equiv="Content-Security-Policy"/i.test(html)) return html;
+  const nonce = Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, '0')).join('');
+  const csp = `default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'`;
+  return html
+    .replace(/<meta http-equiv="Content-Security-Policy"[^>]*>/i, `<meta http-equiv="Content-Security-Policy" content="${csp}">`)
+    .replace(/<\/head>/i, () => `<style>${css}</style></head>`)
+    .replace(/<\/body>(?![\s\S]*<\/body>)/i, () => `<script nonce="${nonce}">${js}</script></body>`);
+}
+window.addEventListener('message', (e) => state.onChecks?.(e));
 
 /** Reddedilen araçları kaynağa çevirir; kapalı kaynak varsa tek tıkla açtırır. */
 const DENIAL_SOURCES = [[/Claude_Docs/i, 'docs'], [/slack/i, 'slack'], [/notion/i, 'notion'], [/confluence/i, 'confluence']];
@@ -518,6 +607,8 @@ function attachJob(jobId, key) {
   const box = $('#progress');
   const btn = $('#genBtn');
   if (btn) btn.disabled = true;
+  const card = $('#genCard');
+  if (card) card.hidden = false;
   const log = h('ul', { class: 'log' });
   const timer = h('span', { class: 'sub' }, '0:00');
   let started = Date.now();
@@ -549,12 +640,8 @@ function attachJob(jobId, key) {
     if (ev.type === 'done') {
       finish();
       if (state.current !== key) return;
-      box.replaceChildren(h('div', { class: 'msg ok' }, 'Rehber hazır.'));
-      const r = await api(`/api/guides?key=${key}`);
-      renderGuides(key, r.guides, ev.guide.id);
-      $('#genBtn').textContent = 'Yeniden oluştur';
       if (state.tab === 'archive') loadList();
-      $('#viewer').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      openIssue(key, ev.guide.id); // rehber düzenine geç
     }
     if (ev.type === 'error') { finish(); if (state.current === key) box.replaceChildren(h('div', { class: 'msg bad' }, ev.message)); }
   };
@@ -564,6 +651,7 @@ function attachJob(jobId, key) {
 // ---- Başlangıç --------------------------------------------------------------------------
 
 (async function init() {
+  $('.mark').replaceWith(mascot('mark'));
   applyConfig(await api('/api/config'));
   showWelcome();
   if (!state.config.setupDone) startOnboarding();

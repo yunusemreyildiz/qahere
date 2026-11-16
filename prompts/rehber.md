@@ -60,6 +60,8 @@ Yanıtının tamamı, aşağıdaki iki işaret arasında tek bir HTML parçası 
 HTML kuralları:
 - `<html>`, `<head>`, `<body>`, `<style>`, `<script>`, `<img>`, `<svg>`, `<iframe>` kullanma. Satır içi `style` ve olay öznitelikleri kullanma. Stil hazır; yalnızca aşağıdaki sınıfları kullan.
 - Bölüm başlıkları `<h2>` (numaralı: "1. Akış ve durumlar"), alt başlıklar `<h3>`.
+- Teknik arka plan bölümlerinin (İş haritası, Servis / kontrat, Kararlar, Otomasyon ve analytics, Kime ne sorulmalı, Kaynaklar) başlığına `data-tier="detay"` ekle: `<h2 data-tier="detay">5. Servis / kontrat</h2>`. Uygulama bunları QA'nın önce okuması gerekenlerden sonra, kapalı bölümler olarak gösterir; PDF'te sıra değişmez.
+- `ul class="chk"` yalnızca test edilecek ya da test öncesi hazırlanacak maddeler içindir; durum özeti, karar ya da bilgi listelerinde düz `<ul>` kullan.
 - Kutular: `<div class="box brand|ok|warn|bad">`, içinde `<h3>` ile başlık olabilir.
 - Sayı kartları: `<div class="kpis"><div class="kpi"><b>10</b><span>açıklama</span></div>…</div>` (en çok 4 kart).
 - Durum etiketi: `<span class="tag t-rft">Ready for Test</span>` (test edilebilir / tamamlanmış: `t-rft`, geliştirme ya da incelemede: `t-cr`, bloklu ya da başlamamış: `t-open`).

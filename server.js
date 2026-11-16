@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { jiraConfigured, jiraBaseUrl, listEpics, searchIssues, getIssueTree, parseIssueKey, testConnection } from './lib/jira.js';
 import { getSettings, publicSettings, saveSettings } from './lib/config.js';
 import { generateGuide } from './lib/generate.js';
-import { saveGuide, listGuides, deleteGuide, guidePaths, dataDir } from './lib/store.js';
+import { saveGuide, listGuides, deleteGuide, guidePaths, dataDir, setChecks, guideHtml } from './lib/store.js';
 import { findBrowser, renderPdf } from './lib/pdf.js';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
@@ -201,17 +201,32 @@ app.delete('/api/guides/:key/:id', wrap(async (req, res) => {
   res.json({ ok: true });
 }));
 
-app.get('/guides/:key/:id.html', (req, res) => {
+// Kontrol listesinde işaretlenen maddeler (sıra numaraları). PDF bir sonraki indirmede bunlarla yeniden üretilir.
+app.put('/api/guides/:key/:id/checks', wrap(async (req, res) => {
+  const p = guidePaths(req.params.key, req.params.id);
+  if (!fs.existsSync(p.meta)) return res.status(404).json({ error: 'Rehber bulunamadı.' });
+  if (!Array.isArray(req.body?.checks)) return res.status(400).json({ error: 'checks bir dizi olmalı.' });
+  const rec = await setChecks(req.params.key, req.params.id, req.body.checks.slice(0, 2000), Number(req.body.rev));
+  res.json({ checks: rec.checks, checkTotal: rec.checkTotal });
+}));
+
+app.get('/guides/:key/:id.html', wrap(async (req, res) => {
   const p = guidePaths(req.params.key, req.params.id);
   if (!fs.existsSync(p.html)) return res.status(404).send('Rehber bulunamadı.');
   res.set('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; sandbox allow-popups allow-popups-to-escape-sandbox");
-  res.sendFile(p.html);
-});
+  res.set('Cache-Control', 'no-store');
+  res.type('html').send(await guideHtml(req.params.key, req.params.id));
+}));
 
 app.get('/guides/:key/:id.pdf', wrap(async (req, res) => {
   const p = guidePaths(req.params.key, req.params.id);
   if (!fs.existsSync(p.html)) return res.status(404).json({ error: 'Rehber bulunamadı.' });
-  if (!fs.existsSync(p.pdf)) await renderPdf(p.html, p.pdf);
+  if (!fs.existsSync(p.pdf)) {
+    // İşaretler uygulanmış geçici bir kopyadan basılır.
+    const tmp = p.html.replace(/\.html$/, '.print.html');
+    await fsp.writeFile(tmp, await guideHtml(req.params.key, req.params.id));
+    try { await renderPdf(tmp, p.pdf); } finally { fsp.rm(tmp, { force: true }).catch(() => {}); }
+  }
   res.download(p.pdf, `${path.basename(p.dir)}-QA-Rehberi.pdf`);
 }));
 
