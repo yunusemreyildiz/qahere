@@ -1,56 +1,96 @@
-# qaHere
+<p align="center">
+  <img src="docs/mascot.svg" width="96" alt="qaHere maskotu: elini kaldıran bir rehber sayfası">
+</p>
 
-Jira'daki bir epic ya da task için, test etmeden önce okunacak **QA rehberini** otomatik hazırlar.
-Jira işini ve alt işlerini, ilgili Slack konuşmalarını, Notion ve Confluence sayfalarını okur; sonucu tarayıcıda gösterir ve PDF olarak indirtir.
+<h1 align="center">qaHere</h1>
 
-Rehberde şunlar bulunur: özelliğin özeti, kim hangi işte ve ne durumda, akış ve durum tablosu, servis kontratı ve hata kodları, ekran ekran test kontrol listesi, platform farkları, **kaynaklar arasındaki çelişkiler**, kronolojik kararlar, otomasyon id'leri, test hazırlığı ve "kime ne sorulmalı" listesi.
+<p align="center">
+  Jira işinden, test etmeden önce okunacak <b>QA rehberini</b> hazırlar.<br>
+  Bilgisayarında çalışır, rehberi kendi Claude hesabınla yazar.
+</p>
 
-Araç kendi bilgisayarında çalışır. Yazıyı, bilgisayarında kurulu **Claude Code** üretir; ayrı bir API anahtarı ya da sunucu gerekmez, kendi Claude hesabının kullanım hakkından düşer.
+<p align="center">
+  <b>Türkçe</b> · <a href="README.en.md">English</a>
+</p>
 
-Depoda hiçbir kuruma ait ayar ya da veri yoktur. Jira adresini, hesabını ve kaynaklarını ilk açılışta kendin girersin; hepsi yalnızca senin bilgisayarında saklanır.
+<p align="center">
+  <img src="docs/screenshots/guide.png" alt="qaHere rehber ekranı: solda bölümler ve kontrol ilerlemesi, sağda rehber">
+</p>
+
+---
+
+## Ne yapar?
+
+Bir epic ya da task seçersin. qaHere Jira işini ve alt işlerini, ilgili Slack yazışmalarını, Notion ve Confluence sayfalarını okur. Sonra QA'nın ihtiyaç duyduğu sırayla bir rehber yazar:
+
+- **Önce bilmen gerekenler:** özet ve QA için ana kural, hangi platform hangi aşamada, test hazırlığı, akış adımları, kaynaklar arasındaki **çelişkiler**.
+- **Test kontrol listesi:** ekran ekran, tıklayarak işaretlenen maddeler. İşaretler anında kaydedilir; sekmeyi kapatıp geri geldiğinde yerinde durur, PDF'e de yansır.
+- **Ayrıntılar:** servis kontratı ve hata kodları, otomasyon id'leri, kararların kronolojisi, iş haritası, kime ne sorulacağı, okunan kaynaklar. Hiçbiri atlanmaz, ama kapalı bölümlerde durur; testi bunları bilmeden de yürütebilirsin.
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/checklist.png" alt="Kontrol listesi: işaretlenen maddeler ve bölüm bazında ilerleme"></td>
+    <td width="50%"><img src="docs/screenshots/details.png" alt="Ayrıntılar: servis kontratı gibi teknik bölümler kapalı satırlarda"></td>
+  </tr>
+  <tr>
+    <td>Kontrol listesi: tıkla, işaretlensin. Soldaki sütun her bölümde kaç maddenin bittiğini gösterir; <b>Sıradaki kontrole git</b> seni ilk işaretlenmemiş maddeye götürür.</td>
+    <td>Teknik ayrıntılar en altta, kapalı satırlarda. Takıldığında aç.</td>
+  </tr>
+</table>
+
+Rehberi **PDF** olarak indirebilir ya da **yeni sekmede** tam rapor olarak açabilirsin; ikisinde de bütün bölümler sırayla yer alır.
 
 ---
 
 ## Kurulum
 
-### 1. Gerekenler
+Yaklaşık 5 dakika sürer. Sırayla git; her adımın sonunda neyi görmen gerektiği yazıyor.
 
-| Ne | Neden | Kontrol |
+### 1. Gerekenleri kontrol et
+
+| Ne | Neden | Nasıl kontrol edilir |
 | --- | --- | --- |
-| Node.js 18 ya da üstü | Aracı çalıştırır | `node --version` |
+| Node.js 18 ya da üstü | qaHere'yi çalıştırır | `node --version` |
 | Claude Code | Rehberi yazar | `claude --version` |
+| Ücretli bir Claude hesabı | Claude Code'a giriş ve kaynak bağlantıları | – |
 | Chrome ya da Edge | PDF üretir (yoksa tarayıcıdan yazdırırsın) | – |
-| Ücretli bir Claude hesabı | Claude Code'a giriş ve bağlantılar | – |
 
-Node yoksa: <https://nodejs.org> (LTS sürümü).
+Node yoksa <https://nodejs.org> adresinden LTS sürümünü kur.
 
 ### 2. Claude Code'u kur ve giriş yap
+
+macOS / Linux:
 
 ```bash
 curl -fsSL https://claude.ai/install.sh | bash
 ```
 
-Windows'ta PowerShell: `irm https://claude.ai/install.ps1 | iex`
+Windows (PowerShell):
 
-Sonra terminalde bir kez çalıştır ve hesabınla giriş yap:
+```powershell
+irm https://claude.ai/install.ps1 | iex
+```
+
+Sonra terminalde bir kez çalıştır ve Claude hesabınla giriş yap:
 
 ```bash
 claude
 ```
 
-### 3. Kaynak bağlantılarını aç
+✅ `claude --version` bir sürüm numarası yazıyorsa bu adım tamam.
 
-Rehberin Slack, Notion, Confluence ya da Claude Docs'ı okuyabilmesi için ilgili bağlantı Claude hesabında açık olmalı.
+### 3. Okunacak kaynakları Claude hesabına bağla
 
-1. <https://claude.ai> → **Ayarlar → Bağlayıcılar (Connectors)**
-2. Kullanacağın uygulamaları bağla (**Slack**, **Notion**, Confluence için **Atlassian**) ve izin ver.
+Rehberin Slack, Notion, Confluence ya da Claude Docs'u okuyabilmesi için bu bağlantıların Claude hesabında açık olması gerekir.
 
-Alternatif: terminalde `claude` açıkken `/mcp` yazıp aynı bağlantılara oradan giriş yapabilirsin.
-Bazı çalışma alanlarında bağlantıyı önce yöneticinin onaylaması gerekir.
+1. <https://claude.ai> → **Ayarlar → Bağlayıcılar (Connectors)** sayfasını aç.
+2. Kullanacaklarını bağla: **Slack**, **Notion**, Confluence için **Atlassian**. İzin ekranında onay ver.
 
-> Araç yalnızca **senin** görebildiğin içeriği okur. Üyesi olmadığın özel kanallar rehbere girmez.
+Terminalde `claude` açıkken `/mcp` yazıp aynı bağlantılara oradan da giriş yapabilirsin. Bazı şirketlerde bağlantıyı önce bir yöneticinin onaylaması gerekir.
 
-### 4. Projeyi indir ve çalıştır
+> qaHere yalnızca **senin** görebildiğin içeriği okur. Üyesi olmadığın özel kanallar rehbere girmez. Hiçbir kaynağa yazmaz.
+
+### 4. qaHere'yi indir ve başlat
 
 ```bash
 git clone https://github.com/yunusemreyildiz/qahere.git
@@ -64,22 +104,36 @@ cd qahere && npm install
 npm start
 ```
 
-Tarayıcıda aç: <http://localhost:4310>
+✅ Terminalde `qaHere hazır → http://localhost:4310` yazısını gör, sonra tarayıcıda <http://localhost:4310> adresini aç.
 
-### 5. İlk açılış adımları
+### 5. İlk açılış adımlarını tamamla
 
-İlk açılışta kısa bir kurulum ekranı gelir:
+İlk açılışta qaHere seni dört kısa adımda kurulumdan geçirir.
 
-1. **Claude Code** kurulu mu, denetlenir.
-2. **Jira'yı bağla:** Jira adresin (`sirketin.atlassian.net`), e-postan ve API token'ın. Token'ı <https://id.atlassian.com/manage-profile/security/api-tokens> sayfasından oluşturursun. "Bağlantıyı sına" görebildiğin projeleri listeler; listede görmek istediklerini seçersin.
-3. **Kaynakları seç:** Slack, Notion, Confluence, Claude Docs. İstediğini aç, kapat.
-4. **Ad ve renk:** İsteğe bağlı çalışma alanı adı ve vurgu rengi.
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/setup-1-welcome.png" alt="Karşılama ekranı"></td>
+    <td width="50%"><img src="docs/screenshots/setup-2-claude.png" alt="Claude Code denetimi"></td>
+  </tr>
+  <tr>
+    <td><b>Karşılama.</b> <i>Kurulumu başlat</i>'a bas.</td>
+    <td><b>Claude Code.</b> Kurulu olup olmadığı kendiliğinden denetlenir. Yeşilse devam et; değilse ekrandaki komutları çalıştırıp <i>Yeniden denetle</i>'ye bas.</td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/setup-3-jira.png" alt="Jira bağlantısı"></td>
+    <td><img src="docs/screenshots/setup-4-sources.png" alt="Kaynak seçimi"></td>
+  </tr>
+  <tr>
+    <td><b>Jira'yı bağla.</b> Jira adresin (<code>sirketin.atlassian.net</code>), e-postan ve bir API token. Token'ı <a href="https://id.atlassian.com/manage-profile/security/api-tokens">Atlassian hesap sayfasında</a> <i>Create API token</i> ile oluştur ve yapıştır. <i>Bağlantıyı sına</i> görebildiğin projeleri listeler; listede görmek istediklerini seç.</td>
+    <td><b>Kaynakları seç.</b> Rehber yazılırken Jira'nın yanında nerelere bakılsın? 3. adımda bağladıklarını aç. <i>Bağlantıları denetle</i> hepsinin Claude Code'da gerçekten bağlı olduğunu doğrular.</td>
+  </tr>
+</table>
 
-Jira token'ı **isteğe bağlıdır**. Token girmezsen epic listesi ve başlıkla arama çalışmaz; ama anahtarı (ör. `PROJ-123`) elle yazıp rehber üretebilirsin. O durumda Jira içeriğini Claude, Atlassian bağlantısıyla okur (biraz daha yavaş).
+Son adımda istersen bir çalışma alanı adı ve vurgu rengi seçip **Kullanmaya başla**'ya bas.
 
-Her şeyi sonradan sağ üstteki **Ayarlar**'dan değiştirebilirsin.
+**Jira token'ı şart değil.** *Token olmadan devam et* dersen epic listesi ve başlıkla arama çalışmaz, ama bir iş anahtarını (ör. `PROJ-123`) elle yazıp rehber üretebilirsin. Bu durumda Jira içeriğini Claude, Atlassian bağlantısıyla okur; biraz daha yavaştır.
 
-Kurulumu komut satırından denetlemek istersen:
+Her şeyi sonradan sağ üstteki ⚙️ **Ayarlar**'dan değiştirebilirsin. Kurulumu komut satırından denetlemek için:
 
 ```bash
 npm run doctor
@@ -89,16 +143,13 @@ npm run doctor
 
 ## Kullanım
 
-1. Soldaki listeden bir **epic** seç ya da üstteki kutuya anahtarı / Jira linkini / başlığı yazıp Enter'a bas.
+1. Soldaki listeden bir **epic** seç ya da üstteki kutuya anahtarı, Jira linkini ya da başlığı yazıp Enter'a bas. Tek bir task için de rehber üretebilirsin.
 2. İstersen **Ek not** yaz (ör. "hata durumlarına ağırlık ver").
-3. **Rehber oluştur**'a bas. İlerleme satır satır görünür: hangi Jira işi, hangi arama, hangi sayfa okunuyor.
-4. Bitince rehber sayfada açılır. **PDF indir** ile indir, **Yeni sekmede aç** ile tam ekran oku.
-5. Üretilen her rehber **Rehberlerim** sekmesinde saklanır. Aynı iş için tekrar üretirsen eskileri "Önceki sürümler"de kalır.
+3. **Rehber oluştur**'a bas. İlerleme satır satır görünür: hangi iş, hangi arama, hangi sayfa okunuyor. Genelde 3–8 dakika sürer.
+4. Bittiğinde rehber ekranın tamamını kaplar. Soldan bölümler arasında gez, test ettikçe maddeleri işaretle.
+5. **PDF indir** ile paylaş. Her rehber **Rehberlerim**'de saklanır; aynı iş için yeniden ürettiğinde eski sürümler araç çubuğundaki listeden seçilebilir.
 
-Süre işin büyüklüğüne göre değişir; alt işi çok olan bir epic için birkaç dakika sürer.
-Tek seferde bir rehber üretilir; ikincisi için ilkinin bitmesini bekle ya da **İptal** et.
-
-Epic şart değil; tek bir task için de rehber üretebilirsin.
+Aynı anda tek rehber üretilir; ikincisi için ilkinin bitmesini bekle ya da **İptal** et.
 
 ---
 
@@ -110,30 +161,29 @@ Ayarlar arayüzden yapılır ve `data/settings.json` dosyasında saklanır (git'
 | --- | --- |
 | Jira adresi, e-posta, API token | Liste, arama ve ön veri için. Adres değişirse token yeniden istenir. |
 | Projeler | Soldaki listede görünecek Jira projeleri |
-| Kaynaklar | Slack, Notion, Confluence, Claude Docs; kapalı olan kaynağa hiç bakılmaz |
+| Kaynaklar | Slack, Notion, Confluence, Claude Docs; kapalı kaynağa hiç bakılmaz |
 | Çalışma alanı, vurgu rengi | Arayüzde ve rehber kapağında görünür |
 | Model | `sonnet` dengeli, `opus` daha derin, `haiku` en hafif |
 
-İstersen aynı değerleri `.env` dosyasıyla da verebilirsin (bkz. `.env.example`); arayüzden kaydedilen ayar önceliklidir. Yalnızca `.env` ile ayarlananlar:
+Aynı değerleri `.env` dosyasıyla da verebilirsin (bkz. `.env.example`); arayüzden kaydedilen ayar önceliklidir. Yalnızca `.env` ile ayarlananlar:
 
 | Değişken | Varsayılan | Açıklama |
 | --- | --- | --- |
 | `CLAUDE_BIN` | `claude` | Komut PATH'te değilse tam yolu |
-| `GENERATE_TIMEOUT_MIN` | `20` | Bir üretimin azami süresi |
+| `GENERATE_TIMEOUT_MIN` | `20` | Bir üretimin azami süresi (dakika) |
 | `PORT` | `4310` | Arayüz portu |
 | `CHROME_BIN` | otomatik | PDF için tarayıcı yolu (bulunamazsa) |
 | `CLAUDE_EXTRA_ALLOWED_TOOLS` | boş | Bağlantıların farklı adla kuruluysa ek okuma araçları |
 
-### Kullanım maliyeti
-
-Aracın kendisi ücretsizdir ve bir sunucuya bağlı değildir. Her rehber, onu üreten kişinin Claude hesabının kullanım hakkından düşer; ne kadar düşeceği işin büyüklüğüne ve seçilen modele bağlıdır.
+**Maliyet:** qaHere ücretsizdir ve bir sunucuya bağlı değildir. Her rehber, onu üreten kişinin Claude hesabının kullanım hakkından düşer; ne kadar düşeceği işin büyüklüğüne ve modele bağlıdır.
 
 ---
 
 ## Rehberi kendine göre uyarlamak
 
-- **İçerik ve bölümler:** `prompts/rehber.md`. Bölüm eklemek, sıra değiştirmek, araştırma kurallarını sıkılaştırmak için bu dosyayı düzenle. Sunucuyu yeniden başlatmaya gerek yok.
-- **Görünüm:** `templates/guide.css`. Yazı boyutu, PDF sayfa kenarları. Vurgu rengi Ayarlar'dan gelir.
+- **İçerik ve bölümler:** `prompts/rehber.md`. Bölüm eklemek, sıra değiştirmek, araştırma kurallarını sıkılaştırmak için. Sunucuyu yeniden başlatmaya gerek yok.
+- **Rehber ve PDF görünümü:** `templates/guide.css`.
+- **Uygulama içi rehber düzeni** (bölüm sırası, sol sütun, kapalı bölümler): `public/viewer.js` ve `public/viewer.css`.
 - **Kaynaklar:** `lib/generate.js` içindeki `READ_TOOLS`. **Yalnızca okuma araçları ekle.**
 
 ---
@@ -142,21 +192,21 @@ Aracın kendisi ücretsizdir ve bir sunucuya bağlı değildir. Her rehber, onu 
 
 | Belirti | Çözüm |
 | --- | --- |
-| "Claude Code bulunamadı" | `claude --version` çalışıyor mu? Çalışmıyorsa 2. adımı tekrarla. Çalışıyor ama araç bulamıyorsa `.env`'e `CLAUDE_BIN=/tam/yol/claude` yaz (`which claude`). |
-| "Jira'ya bağlanılamadı" | Ayarlar'da adresi, e-postayı ve token'ı kontrol edip "Bağlantıyı sına"ya bas. |
+| "Claude Code bulunamadı" | `claude --version` çalışıyor mu? Çalışmıyorsa 2. adımı tekrarla. Çalışıyor ama qaHere bulamıyorsa `.env`'e `CLAUDE_BIN=/tam/yol/claude` yaz (`which claude`). |
+| "Jira'ya bağlanılamadı" | Ayarlar'da adresi, e-postayı ve token'ı kontrol edip *Bağlantıyı sına*'ya bas. |
 | Epic listesi boş | Ayarlar'da proje seçili mi? O projeyi görmeye yetkin var mı? |
 | Rehberde bir kaynağa "bakılamadı" yazıyor | Sağ üstte **Durum → Bağlantıları denetle**. "Giriş gerekiyor" diyorsa 3. adımı tekrarla. |
-| "Claude beklenen biçimde rehber üretmedi" | Tekrar dene. Sürerse `claude` komutunu terminalde açıp giriş yaptığından emin ol. |
-| "Süre doldu" | Çok büyük epic. `GENERATE_TIMEOUT_MIN` değerini artır ya da alt işler için ayrı ayrı üret. |
-| PDF inmiyor | Chrome/Edge kurulu değil. "Yeni sekmede aç" → tarayıcıdan Yazdır → PDF olarak kaydet. |
+| "Claude beklenen biçimde rehber üretmedi" | Tekrar dene. Sürerse terminalde `claude` açıp giriş yaptığından emin ol. |
+| "Süre doldu" | Çok büyük epic. `GENERATE_TIMEOUT_MIN`'i artır ya da alt işler için ayrı üret. |
+| PDF inmiyor | Chrome/Edge kurulu değil. *Yeni sekmede aç* → tarayıcıdan Yazdır → PDF olarak kaydet. |
 | Port dolu | `.env`'de `PORT=4311` yap. |
 
 ---
 
 ## Sınırlar
 
-- Yalnızca **Jira Cloud** desteklenir (Jira Server / Data Center desteklenmez).
-- Arayüz ve üretilen rehber **Türkçe**dir.
+- Yalnızca **Jira Cloud** (Jira Server / Data Center yok).
+- Arayüz ve üretilen rehber şimdilik yalnızca **Türkçe**.
 - Jira dışındaki iş takip araçları desteklenmez.
 
 ---
@@ -166,9 +216,9 @@ Aracın kendisi ücretsizdir ve bir sunucuya bağlı değildir. Her rehber, onu 
 - Sunucu yalnızca `127.0.0.1`'i dinler ve yalnızca bu bilgisayardaki tarayıcıdan gelen istekleri kabul eder.
 - Claude'a yalnızca **okuma** araçları açılır. Mesaj gönderme, issue oluşturma ya da değiştirme, dosya yazma, komut çalıştırma ve web erişimi kapalıdır.
 - Jira token'ı arayüze geri gönderilmez, yalnızca girdiğin Jira adresine gider; adres değişince silinir.
-- Üretilen rehber betik çalıştıramayacak şekilde temizlenir ve korumalı çerçevede gösterilir.
-- Ayarlar, token ve rehberler yalnızca senin bilgisayarında durur (`data/` ve `.env`; ikisi de git'e girmez).
-- **Rehberi paylaşmadan önce oku.** İçinde senin erişebildiğin özel kanallardan alıntılar olabilir; paylaştığın kişinin o bilgiyi görmeye yetkisi olduğundan emin ol.
+- Rehber, betikleri temizlenmiş olarak korumalı bir çerçevede gösterilir. Çerçevede yalnızca qaHere'nin her açılışta eklediği görüntüleyici betiği çalışabilir.
+- Ayarlar, token, rehberler ve işaretler yalnızca senin bilgisayarında durur (`data/` ve `.env`; ikisi de git'e girmez).
+- **Rehberi paylaşmadan önce oku.** İçinde senin erişebildiğin özel kanallardan alıntılar olabilir.
 - Rehber otomatik derlenir; yanlış ya da eksik olabilir. Kritik maddeleri test etmeden önce ilgili kişiyle teyit et.
 
 ---
@@ -177,15 +227,18 @@ Aracın kendisi ücretsizdir ve bir sunucuya bağlı değildir. Her rehber, onu 
 
 ```
 qahere/
-├── server.js            Express sunucusu, üretim işleri, arşiv, PDF uçları
+├── server.js            Express sunucusu, üretim işleri, arşiv, işaretler, PDF
 ├── lib/
 │   ├── config.js        Ayarlar (data/settings.json + .env yedeği)
 │   ├── jira.js          Jira REST istemcisi (yalnızca okuma)
 │   ├── generate.js      Claude Code'u arka planda çalıştırır, çıktıyı temizler
 │   ├── pdf.js           Chrome/Edge ile PDF
-│   └── store.js         Rehber arşivi (data/guides)
+│   └── store.js         Rehber arşivi ve kontrol işaretleri (data/guides)
 ├── prompts/rehber.md    Rehberin nasıl yazılacağını anlatan talimat
-├── templates/guide.css  Rehberin görünümü
-├── public/              Arayüz (bağımlılıksız HTML/CSS/JS)
+├── templates/guide.css  Rehberin ve PDF'in görünümü
+├── public/              Arayüz (bağımlılıksız HTML/CSS/JS) ve rehber görüntüleyici
+├── docs/                README görselleri
 └── data/                Ayarlar ve üretilen rehberler (git'e girmez)
 ```
+
+Lisans: MIT. Ekran görüntülerindeki iş ve kişiler uydurmadır.

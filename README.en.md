@@ -1,0 +1,246 @@
+<p align="center">
+  <img src="docs/mascot.svg" width="96" alt="qaHere mascot: a guide page raising its hand">
+</p>
+
+<h1 align="center">qaHere</h1>
+
+<p align="center">
+  Turns a Jira issue into the <b>QA guide</b> a tester reads before testing.<br>
+  Runs on your computer and writes the guide with your own Claude account.
+</p>
+
+<p align="center">
+  <a href="README.md">Türkçe</a> · <b>English</b>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/guide.png" alt="qaHere guide view: sections and checklist progress on the left, the guide on the right">
+</p>
+
+> **Language note:** the app's interface and the guides it writes are currently **Turkish only**. The screenshots below show the Turkish UI; each one is described in English.
+
+---
+
+## What it does
+
+Pick an epic or a task. qaHere reads the Jira issue and its sub-tasks, related Slack threads, and Notion and Confluence pages. Then it writes a guide in the order a tester needs it:
+
+- **What to know first:** a summary and the main rule for QA, which platform is at which stage, test preparation, flow steps, and **contradictions** between sources.
+- **Test checklist:** screen by screen, ticked with a click. Ticks are saved instantly; close the tab, come back, and they are still there. They also show up in the PDF.
+- **Details:** service contract and error codes, automation IDs, a timeline of decisions, the issue map, who to ask what, and the sources that were read. Nothing is left out, but these sit in collapsed sections; you can run the tests without them.
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/checklist.png" alt="Checklist with ticked items and per-section progress"></td>
+    <td width="50%"><img src="docs/screenshots/details.png" alt="Technical sections such as the service contract in collapsed rows"></td>
+  </tr>
+  <tr>
+    <td>Checklist: click to tick. The left column shows how many items are done in each section; <b>Go to next check</b> jumps to the first unticked item.</td>
+    <td>Technical details at the bottom, in collapsed rows. Open them when you get stuck.</td>
+  </tr>
+</table>
+
+You can download the guide as a **PDF** or open the full report in a **new tab**; both contain every section in order.
+
+---
+
+## Installation
+
+Takes about 5 minutes. Go step by step; each step tells you what you should see when it's done.
+
+### 1. Check the requirements
+
+| What | Why | How to check |
+| --- | --- | --- |
+| Node.js 18 or later | Runs qaHere | `node --version` |
+| Claude Code | Writes the guide | `claude --version` |
+| A paid Claude account | Claude Code sign-in and source connectors | – |
+| Chrome or Edge | Creates PDFs (otherwise print from the browser) | – |
+
+If you don't have Node, install the LTS version from <https://nodejs.org>.
+
+### 2. Install Claude Code and sign in
+
+macOS / Linux:
+
+```bash
+curl -fsSL https://claude.ai/install.sh | bash
+```
+
+Windows (PowerShell):
+
+```powershell
+irm https://claude.ai/install.ps1 | iex
+```
+
+Then run it once in a terminal and sign in with your Claude account:
+
+```bash
+claude
+```
+
+✅ This step is done when `claude --version` prints a version number.
+
+### 3. Connect the sources to your Claude account
+
+For the guide to read Slack, Notion, Confluence or Claude Docs, those connectors must be enabled on your Claude account.
+
+1. Open <https://claude.ai> → **Settings → Connectors**.
+2. Connect the ones you'll use: **Slack**, **Notion**, and **Atlassian** for Confluence. Approve the permission screen.
+
+You can also type `/mcp` inside `claude` in a terminal and sign in to the same connectors there. In some companies an admin has to approve a connector first.
+
+> qaHere only reads content **you** can see. Private channels you're not a member of never end up in a guide. It never writes to any source.
+
+### 4. Download and start qaHere
+
+```bash
+git clone https://github.com/yunusemreyildiz/qahere.git
+```
+
+```bash
+cd qahere && npm install
+```
+
+```bash
+npm start
+```
+
+✅ Wait for `qaHere hazır → http://localhost:4310` in the terminal, then open <http://localhost:4310> in your browser.
+
+### 5. Finish the first-run steps
+
+On first launch, qaHere walks you through four short steps.
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/setup-1-welcome.png" alt="Welcome screen"></td>
+    <td width="50%"><img src="docs/screenshots/setup-2-claude.png" alt="Claude Code check"></td>
+  </tr>
+  <tr>
+    <td><b>Welcome.</b> Press <i>Kurulumu başlat</i> (Start setup).</td>
+    <td><b>Claude Code.</b> Checked automatically. If it's green, continue; if not, run the commands shown and press <i>Yeniden denetle</i> (Check again).</td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/setup-3-jira.png" alt="Jira connection"></td>
+    <td><img src="docs/screenshots/setup-4-sources.png" alt="Source selection"></td>
+  </tr>
+  <tr>
+    <td><b>Connect Jira.</b> Your Jira address (<code>yourcompany.atlassian.net</code>), your email and an API token. Create the token on your <a href="https://id.atlassian.com/manage-profile/security/api-tokens">Atlassian account page</a> with <i>Create API token</i> and paste it. <i>Bağlantıyı sına</i> (Test connection) lists the projects you can see; pick the ones you want in the list.</td>
+    <td><b>Choose sources.</b> Where should qaHere look besides Jira? Turn on the ones you connected in step 3. <i>Bağlantıları denetle</i> (Check connections) confirms they're really connected in Claude Code.</td>
+  </tr>
+</table>
+
+In the last step you can optionally set a workspace name and an accent color, then press **Kullanmaya başla** (Start using).
+
+**A Jira token is optional.** If you choose *Token olmadan devam et* (Continue without a token), the epic list and title search won't work, but you can still type an issue key (e.g. `PROJ-123`) and generate a guide. Claude then reads Jira through its Atlassian connector, which is a little slower.
+
+You can change everything later under ⚙️ **Settings** in the top right. To check your setup from the command line:
+
+```bash
+npm run doctor
+```
+
+---
+
+## Usage
+
+1. Pick an **epic** from the list on the left, or type a key, a Jira link or a title in the search box and press Enter. Single tasks work too.
+2. Optionally add a **note** (e.g. "focus on error cases").
+3. Press **Rehber oluştur** (Create guide). Progress shows line by line: which issue, which search, which page is being read. Usually takes 3–8 minutes.
+4. When it's done, the guide fills the screen. Move between sections on the left and tick items as you test.
+5. Share it with **PDF indir** (Download PDF). Every guide is kept under **Rehberlerim** (My guides); if you regenerate one, older versions stay selectable in the toolbar.
+
+One guide is generated at a time; wait for the first to finish or **cancel** it.
+
+---
+
+## Settings
+
+Settings are made in the UI and stored in `data/settings.json` (never committed).
+
+| Setting | Description |
+| --- | --- |
+| Jira address, email, API token | For the list, search and pre-fetched data. Changing the address asks for the token again. |
+| Projects | Jira projects shown in the left list |
+| Sources | Slack, Notion, Confluence, Claude Docs; disabled sources are never read |
+| Workspace, accent color | Shown in the UI and on the guide cover |
+| Model | `sonnet` balanced, `opus` deeper, `haiku` lightest |
+
+You can also provide the same values in a `.env` file (see `.env.example`); settings saved in the UI take precedence. Only available via `.env`:
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `CLAUDE_BIN` | `claude` | Full path if the command isn't on PATH |
+| `GENERATE_TIMEOUT_MIN` | `20` | Maximum time for one generation (minutes) |
+| `PORT` | `4310` | UI port |
+| `CHROME_BIN` | auto | Browser path for PDFs (if not found) |
+| `CLAUDE_EXTRA_ALLOWED_TOOLS` | empty | Extra read-only tools if your connectors use different names |
+
+**Cost:** qaHere is free and doesn't depend on any server. Each guide counts against the Claude usage of the person who generates it; how much depends on the size of the issue and the model.
+
+---
+
+## Customizing the guide
+
+- **Content and sections:** `prompts/rehber.md`. Add sections, change the order, tighten the research rules. No restart needed.
+- **Guide and PDF look:** `templates/guide.css`.
+- **In-app guide layout** (section order, left column, collapsed sections): `public/viewer.js` and `public/viewer.css`.
+- **Sources:** `READ_TOOLS` in `lib/generate.js`. **Only add read-only tools.**
+
+---
+
+## Troubleshooting
+
+| Symptom | Fix |
+| --- | --- |
+| "Claude Code bulunamadı" (not found) | Does `claude --version` work? If not, repeat step 2. If it works but qaHere can't find it, add `CLAUDE_BIN=/full/path/claude` to `.env` (`which claude`). |
+| "Jira'ya bağlanılamadı" (can't connect) | Check the address, email and token in Settings and press *Test connection*. |
+| Epic list is empty | Is a project selected in Settings? Do you have access to that project? |
+| The guide says a source couldn't be read | Top right: **Durum → Bağlantıları denetle** (Status → Check connections). If it says sign-in is required, repeat step 3. |
+| "Claude didn't produce a guide in the expected format" | Try again. If it persists, open `claude` in a terminal and make sure you're signed in. |
+| Time limit reached | Very large epic. Increase `GENERATE_TIMEOUT_MIN` or generate per sub-task. |
+| PDF doesn't download | Chrome/Edge isn't installed. *Open in new tab* → Print → Save as PDF. |
+| Port in use | Set `PORT=4311` in `.env`. |
+
+---
+
+## Limitations
+
+- **Jira Cloud** only (no Jira Server / Data Center).
+- The UI and the generated guides are **Turkish only** for now.
+- Issue trackers other than Jira aren't supported.
+
+---
+
+## Security and privacy
+
+- The server listens on `127.0.0.1` only and accepts requests only from a browser on the same computer.
+- Claude gets **read-only** tools. Sending messages, creating or editing issues, writing files, running commands and web access are all disabled.
+- The Jira token is never sent back to the UI and goes only to the Jira address you entered; it's deleted if the address changes.
+- The guide is shown with scripts stripped, inside a sandboxed frame. The only script allowed to run there is qaHere's own viewer, added fresh on every open.
+- Settings, token, guides and ticks stay on your computer (`data/` and `.env`; neither is committed).
+- **Read the guide before sharing it.** It may quote private channels you have access to.
+- The guide is compiled automatically and can be wrong or incomplete. Confirm critical items with the right person before testing.
+
+---
+
+## Project structure
+
+```
+qahere/
+├── server.js            Express server, generation jobs, archive, ticks, PDF
+├── lib/
+│   ├── config.js        Settings (data/settings.json, .env as fallback)
+│   ├── jira.js          Jira REST client (read-only)
+│   ├── generate.js      Runs Claude Code in the background, cleans the output
+│   ├── pdf.js           PDF via Chrome/Edge
+│   └── store.js         Guide archive and checklist ticks (data/guides)
+├── prompts/rehber.md    Instructions for how the guide is written
+├── templates/guide.css  Guide and PDF styles
+├── public/              UI (dependency-free HTML/CSS/JS) and the guide viewer
+├── docs/                README images
+└── data/                Settings and generated guides (never committed)
+```
+
+License: MIT. The issues and people in the screenshots are made up.

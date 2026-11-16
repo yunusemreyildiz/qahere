@@ -433,8 +433,8 @@ async function openIssue(key, guideId) {
       issue.url ? h('a', { href: issue.url, target: '_blank', rel: 'noopener' }, issue.key) : h('b', {}, issue.key),
       issue.type ? h('span', {}, issue.type) : null,
       issue.status ? h('span', { class: `st ${issue.statusCategory}` }, issue.status) : null),
-    h('h1', { class: 'title' }, issue.summary || key),
-    h('div', { class: 'sub' }, limited ? 'Jira bağlı olmadığı için iş ayrıntıları burada gösterilmiyor; rehber yine de üretilebilir.'
+    h('h1', { class: 'title' }, issue.summary || guides[0]?.issueSummary || key),
+    h('div', { class: 'sub' }, limited ? (hasGuide ? 'Jira bağlı değil; başlık kayıtlı rehberden alındı.' : 'Jira bağlı olmadığı için iş ayrıntıları burada gösterilmiyor; rehber yine de üretilebilir.')
       : [issue.assignee && `Atanan: ${issue.assignee}`, issue.reporter && `Raporlayan: ${issue.reporter}`, issue.parent && `Üst iş: ${issue.parent.key}`].filter(Boolean).join('  ·  ')));
 
   const gen = h('div', { class: 'card', id: 'genCard', hidden: hasGuide },

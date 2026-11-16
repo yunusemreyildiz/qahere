@@ -13,9 +13,9 @@
     { k: 'kontrol', re: /kontrol/i, tier: 'test' },
     { k: 'hazirlik', re: /hazırl/i, tier: 'test' },
     { k: 'platform', re: /platform/i, tier: 'test' },
-    { k: 'harita', re: /iş haritası|alt işler/i, tier: 'detay' },
-    { k: 'servis', re: /servis|kontrat|api/i, tier: 'detay' },
-    { k: 'otomasyon', re: /otomasyon|analytics|event/i, tier: 'detay' },
+    { k: 'harita', re: /iş haritası|alt işler/, tier: 'detay' },
+    { k: 'servis', re: /servis|kontrat|uç nokta|endpoint/i, tier: 'detay' },
+    { k: 'otomasyon', re: /otomasyon|analyt[iı]cs|event/i, tier: 'detay' },
     { k: 'karar', re: /karar/i, tier: 'detay' },
     { k: 'kime', re: /kime|sorulmal/i, tier: 'detay' },
     { k: 'kaynak', re: /kaynak/i, tier: 'detay' },
@@ -35,7 +35,7 @@
     if (n.tagName === 'H2') {
       if (cur.nodes.length) sections.push(cur);
       const title = clean(n.textContent);
-      const kind = KINDS.find((x) => x.re.test(title));
+      const kind = KINDS.find((x) => x.re.test(title.toLocaleLowerCase('tr')));
       const tierAttr = (n.getAttribute('data-tier') || '').toLowerCase();
       cur = { k: kind ? kind.k : '?', tier: tierAttr === 'detay' || tierAttr === 'test' ? tierAttr : (kind ? kind.tier : 'test'), title, h2: n, nodes: [] };
       n.textContent = title;
