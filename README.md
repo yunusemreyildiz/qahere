@@ -1,4 +1,4 @@
-# QA Here (QA Rehber)
+# qaHere
 
 Jira'daki bir epic ya da task için, test etmeden önce okunacak **QA rehberini** otomatik hazırlar.
 Jira işini ve alt işlerini, ilgili Slack konuşmalarını, Notion ve Confluence sayfalarını okur; sonucu tarayıcıda gösterir ve PDF olarak indirtir.

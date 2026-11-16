@@ -221,6 +221,6 @@ app.use((err, _req, res, _next) => {
 
 // Yalnızca bu bilgisayardan erişilir: araç senin Jira token'ını ve Claude oturumunu kullanır.
 app.listen(PORT, '127.0.0.1', () => {
-  console.log(`QA Rehber hazır → http://localhost:${PORT}`);
+  console.log(`qaHere hazır → http://localhost:${PORT}`);
   if (!getSettings().setupDone) console.log('İlk açılış: tarayıcıdaki kurulum adımlarını izle.');
 });

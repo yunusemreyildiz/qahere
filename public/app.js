@@ -1,4 +1,4 @@
-// QA Rehber arayüzü. Bağımlılık yok; dışarıdan gelen her metin textContent ile yazılır.
+// qaHere arayüzü. Bağımlılık yok; dışarıdan gelen her metin textContent ile yazılır.
 const $ = (s) => document.querySelector(s);
 
 function h(tag, attrs = {}, ...kids) {
@@ -55,7 +55,7 @@ function applyConfig(cfg) {
   state.config = cfg;
   document.documentElement.style.setProperty('--accent', cfg.accent);
   $('#ws').textContent = cfg.workspace || '';
-  document.title = cfg.workspace ? `QA Rehber · ${cfg.workspace}` : 'QA Rehber';
+  document.title = cfg.workspace ? `qaHere · ${cfg.workspace}` : 'qaHere';
   const sel = $('#project');
   const prev = sel.value;
   sel.replaceChildren(...cfg.projects.map((p) => h('option', { value: p }, p)));
@@ -296,7 +296,7 @@ function startOnboarding() {
     if (s.hero) {
       box.replaceChildren(h('div', { class: 'ob' },
         h('div', { class: 'ob-mark' }),
-        h('h1', {}, 'QA Rehber\'e hoş geldin'),
+        h('h1', {}, 'qaHere\'a hoş geldin'),
         h('p', { class: 'lead' }, 'Bir Jira işini seç; test etmeden önce okunacak rehberi senin yerine hazırlasın.'),
         h('div', { class: 'feat' }, h('i', {}, icon('doc')), h('div', {}, h('b', {}, 'Tek rehberde her şey'), h('span', {}, 'Akış, kontrol listesi, platform farkları, açık sorular ve kime ne sorulacağı.'))),
         h('div', { class: 'feat' }, h('i', {}, icon('chat')), h('div', {}, h('b', {}, 'Dağınık bağlamı toplar'), h('span', {}, 'Jira işlerini, ilgili yazışmaları ve dokümanları okur; birbiriyle çelişen yerleri gösterir.'))),
