@@ -99,6 +99,8 @@ claude mcp add -s user proxyman -- /Applications/Proxyman.app/Contents/MacOS/mcp
 
 Hata kaydına istek eklemek ve mock kurmak için bu adım gerekmez; qaHere Proxyman'le doğrudan konuşur.
 
+**Diğer bağlantıların:** Ayarlar → Kaynaklar → **Diğer Claude bağlantıların** → *Bağlantılarımı getir*. Claude hesabındaki Google Sheets, Drive, Calendar, Linear, Miro gibi bağlantıları listeler; açtığında qaHere o bağlantının araçlarını çıkarır, yalnızca okuma araçlarını açar ve hangilerinin açılıp hangilerinin kapalı kaldığını gösterir (ör. Google Sheets: `get_values` açık, `update_values` kapalı). Rehber üretirken ve Rehbere sor / Bugbot'ta konuyla ilgiliyse bunlara da bakılır.
+
 > qaHere yalnızca **senin** görebildiğin içeriği okur. Üyesi olmadığın özel kanallar rehbere girmez. Hiçbir kaynağa yazmaz.
 
 ### 4. qaHere'yi indir ve kur

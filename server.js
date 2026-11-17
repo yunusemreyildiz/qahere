@@ -17,6 +17,7 @@ import { findBrowser, renderPdf } from './lib/pdf.js';
 import { checkUpdate, applyUpdate, RESTART_CODE } from './lib/update.js';
 import { askGuide, clearChat, markBugbotFiled } from './lib/ask.js';
 import { notifySlackSelf, slackSelfMessage } from './lib/notify.js';
+import { parseMcpList, inspectConnector } from './lib/connectors.js';
 import { screenshot, devices } from './lib/device.js';
 import { readFlow, saveFlow, draftFlow, startRun, getRun, publicRun, cancelRun, activeRun } from './lib/runner.js';
 
@@ -109,6 +110,17 @@ app.use(express.static(path.join(root, 'public')));
 const wrap = (fn) => (req, res, next) => fn(req, res, next).catch(next);
 
 app.get('/api/health', wrap(async (_req, res) => res.json(await quickHealth())));
+// Diğer Claude bağlantıları: listele (claude mcp list) ve bir bağlantının okuma araçlarını çıkar (ToolSearch).
+app.get('/api/connectors', wrap(async (_req, res) => {
+  const r = await run(claudeBin(), ['mcp', 'list'], 90_000);
+  const saved = getSettings().connectors || {};
+  res.json({ connectors: parseMcpList(r.out).map((c) => ({ ...c, saved: saved[c.name] || null })) });
+}));
+app.post('/api/connectors/inspect', wrap(async (req, res) => {
+  const name = String(req.body?.name || '').trim().slice(0, 80);
+  if (!name) return res.status(400).json({ error: 'Bağlantı adı gerekli.' });
+  res.json(await inspectConnector(name));
+}));
 app.get('/api/health/connectors', wrap(async (_req, res) => res.json(await connectorHealth())));
 
 app.get('/api/config', (_req, res) => res.json(publicSettings()));

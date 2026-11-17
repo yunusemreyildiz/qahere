@@ -101,6 +101,8 @@ claude mcp add -s user proxyman -- /Applications/Proxyman.app/Contents/MacOS/mcp
 
 Attaching requests to bugs and setting up mocks don't need this step; qaHere talks to Proxyman directly.
 
+**Your other connectors:** Settings → Sources → **Diğer Claude bağlantıların** (Your other Claude connectors) → *Bağlantılarımı getir* (Load my connectors). It lists the connectors on your Claude account (Google Sheets, Drive, Calendar, Linear, Miro…); when you turn one on, qaHere reads that connector's tools, enables only the read tools and shows which are on and which stay off (e.g. Google Sheets: `get_values` on, `update_values` off). They're consulted when relevant while generating guides and in Ask the guide / Bugbot.
+
 > qaHere only reads content **you** can see. Private channels you're not a member of never end up in a guide. It never writes to any source.
 
 ### 4. Download and install qaHere

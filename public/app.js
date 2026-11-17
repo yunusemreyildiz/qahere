@@ -171,11 +171,12 @@ function draftFrom(cfg) {
   return { workspace: cfg.workspace, jiraBaseUrl: cfg.jiraBaseUrl, jiraEmail: cfg.jiraEmail, jiraApiToken: '', hasToken: cfg.hasToken,
     projects: [...cfg.projects], sources: { ...cfg.sources }, model: cfg.model, accent: cfg.accent,
     bug: JSON.parse(JSON.stringify(cfg.bug || {})), run: JSON.parse(JSON.stringify(cfg.run || { ios: {}, android: {} })),
-    profile: JSON.parse(JSON.stringify(cfg.profile || { role: '', platforms: [], boards: [] })) };
+    profile: JSON.parse(JSON.stringify(cfg.profile || { role: '', platforms: [], boards: [] })),
+    connectors: JSON.parse(JSON.stringify(cfg.connectors || {})) };
 }
 
 async function saveDraft(d, extra = {}) {
-  const body = { workspace: d.workspace, jiraBaseUrl: d.jiraBaseUrl, jiraEmail: d.jiraEmail, projects: d.projects, sources: d.sources, model: d.model, accent: d.accent, bug: d.bug, run: d.run, profile: d.profile, ...extra };
+  const body = { workspace: d.workspace, jiraBaseUrl: d.jiraBaseUrl, jiraEmail: d.jiraEmail, projects: d.projects, sources: d.sources, model: d.model, accent: d.accent, bug: d.bug, run: d.run, profile: d.profile, connectors: d.connectors, ...extra };
   if (d.jiraApiToken) body.jiraApiToken = d.jiraApiToken;
   applyConfig(await send('/api/settings', 'PUT', body));
 }
@@ -242,7 +243,59 @@ function sourcesSection(d) {
     })),
     h('div', { class: 'group-foot' }, 'Bu kaynaklara Claude hesabındaki bağlantılarla ulaşılır. Açmak için claude.ai → Ayarlar → Bağlayıcılar bölümünden ilgili uygulamayı bağla. Araç yalnızca senin görebildiğin içeriği okur; hiçbir yere yazmaz.'),
     h('div', { class: 'group' }, h('div', { class: 'row' }, h('div', { class: 'grow' }, h('span', {}, 'Seçtiklerinin Claude Code\'da bağlı olup olmadığını gör. Yarım dakika sürebilir.')), btn)),
+    otherConnectors(d),
   );
+}
+
+/**
+ * Claude hesabındaki diğer bağlantılar (Google Sheets, Linear, Miro…): kullanıcı açtığında qaHere bağlantının araçlarını
+ * listeler, yalnızca okuma araçlarını açar ve hangilerinin açılıp hangilerinin kapalı kaldığını gösterir.
+ */
+function otherConnectors(d) {
+  d.connectors ||= {};
+  const box = h('div', { class: 'group' });
+  const short = (n) => n.replace(/^claude\.ai\s+/i, '');
+  const paintSaved = () => {
+    const names = Object.keys(d.connectors);
+    if (!names.length) return box.replaceChildren(h('div', { class: 'row' }, h('div', { class: 'grow' }, h('span', {}, 'Claude hesabındaki diğer bağlantıları (Google Sheets, Drive, Linear, Miro…) da rehbere ve sohbetlere açabilirsin. Yalnızca okuma araçları açılır.')), load));
+    box.replaceChildren(...names.map((n) => row({ name: n, connected: true, saved: d.connectors[n] })), h('div', { class: 'row' }, h('div', { class: 'grow' }), load));
+  };
+  const row = (c) => {
+    const saved = d.connectors[c.name] || c.saved;
+    const note = h('span', {}, saved ? summary(saved) : c.needsAuth ? 'claude.ai → Ayarlar → Bağlayıcılar\'dan giriş yap' : c.connected ? '' : 'Bağlı değil');
+    const sw = h('input', { type: 'checkbox', class: 'switch', 'aria-label': short(c.name), disabled: !c.connected && !saved });
+    sw.checked = Boolean(saved?.enabled);
+    sw.onchange = async () => {
+      if (!sw.checked) { if (d.connectors[c.name]) d.connectors[c.name].enabled = false; note.textContent = d.connectors[c.name] ? summary(d.connectors[c.name]) : ''; return; }
+      if (d.connectors[c.name]?.tools?.length) { d.connectors[c.name].enabled = true; note.textContent = summary(d.connectors[c.name]); return; }
+      sw.disabled = true; note.textContent = 'Araçları listeleniyor… (yarım dakika sürebilir)';
+      try {
+        const r = await send('/api/connectors/inspect', 'POST', { name: c.name });
+        d.connectors[c.name] = { enabled: r.read.length > 0, tools: r.read, skipped: r.skipped };
+        if (r.read.length) return el.replaceWith(row({ ...c, saved: d.connectors[c.name] })); // araç listesiyle yeniden çiz
+        sw.checked = false;
+        note.textContent = 'Okuma aracı bulunamadı; açılmadı.';
+      } catch (e) { sw.checked = false; note.textContent = e.message; }
+      sw.disabled = false;
+    };
+    const details = saved?.tools?.length ? h('details', { class: 'conn-tools' }, h('summary', {}, 'Araçlar'),
+      h('p', {}, h('b', {}, 'Açık (okuma): '), saved.tools.join(', ')),
+      saved.skipped?.length ? h('p', {}, h('b', {}, 'Kapalı (yazma): '), saved.skipped.join(', ')) : null) : null;
+    const el = h('div', { class: 'row' }, h('div', { class: 'grow' }, h('b', {}, short(c.name)), note, details), sw);
+    return el;
+  };
+  const summary = (s) => `${s.tools.length} okuma aracı ${s.enabled ? 'açık' : 'kapalı'}; ${s.skipped?.length || 0} yazma aracı her zaman kapalı`;
+  const load = h('button', { class: 'btn plain sm', type: 'button', onclick: async () => {
+    load.disabled = true; load.textContent = 'Bağlantıların getiriliyor…';
+    try {
+      const { connectors } = await api('/api/connectors');
+      const rows = connectors.sort((a, b) => (b.connected - a.connected) || a.name.localeCompare(b.name)).map(row);
+      box.replaceChildren(...(rows.length ? rows : [h('div', { class: 'row' }, h('span', {}, 'Claude hesabında başka bağlantı yok.'))]));
+    } catch (e) { load.disabled = false; load.textContent = e.message; }
+  } }, 'Bağlantılarımı getir');
+  paintSaved();
+  return h('div', {}, h('div', { class: 'group-title' }, 'Diğer Claude bağlantıların'), box,
+    h('div', { class: 'group-foot' }, 'Açtığın bağlantıya rehber üretirken ve Rehbere sor / Bugbot\'ta konuyla ilgiliyse bakılır. Adı ve açıklaması okuma işi anlatan araçlar açılır; yazan, gönderen ya da silen araçlar her zaman kapalıdır.'));
 }
 
 function lookSection(d) {
