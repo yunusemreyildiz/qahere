@@ -149,6 +149,25 @@ Her şeyi sonradan sağ üstteki ⚙️ **Ayarlar**'dan değiştirebilirsin. Kur
 npm run doctor
 ```
 
+### 6. İsteğe bağlı: masaüstü uygulaması (macOS)
+
+Terminal ve tarayıcı sekmesi yerine Dock'ta duran bir **qaHere** uygulaması istersen:
+
+```bash
+cd desktop && npm install
+```
+
+```bash
+npm run build -- --install
+```
+
+✅ `~/Applications/qaHere.app` oluşur; Launchpad ya da Spotlight'tan aç. Uygulama sunucuyu kendisi başlatır, kapatınca durdurur; terminalde `npm start` açıksa ona bağlanır.
+
+- Uygulama ince bir kabuktur: kodu bu klasörden çalıştırır. **Güncelle** düğmesi uygulamayı da günceller; depoyu taşırsan `npm run build -- --install`'ı yeniden çalıştır.
+- İlk açılışta macOS klasör erişimi sorabilir (depo Belgeler'deyse); **İzin Ver**'e bas.
+- PDF'ler doğrudan İndirilenler'e kaydedilir; Jira ve Slack bağlantıları varsayılan tarayıcında açılır.
+- Electron yaklaşık 300 MB yer kaplar ve yalnızca `desktop/` klasörüne kurulur; masaüstü uygulaması istemeyenleri etkilemez.
+
 ---
 
 ## Kullanım
@@ -303,6 +322,7 @@ qahere/
 │   └── store.js         Rehber arşivi ve kontrol işaretleri (data/guides)
 ├── prompts/rehber.md    Rehberin nasıl yazılacağını anlatan talimat (bölümler: bolumler-ozellik.md, bolumler-hata.md)
 ├── templates/guide.css  Rehberin ve PDF'in görünümü
+├── desktop/             İsteğe bağlı macOS uygulaması (Electron kabuğu)
 ├── public/              Arayüz (bağımlılıksız HTML/CSS/JS) ve rehber görüntüleyici
 ├── docs/                README görselleri
 └── data/                Ayarlar ve üretilen rehberler (git'e girmez)

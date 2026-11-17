@@ -1,0 +1,17 @@
+{
+  "name": "qahere-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "qaHere için isteğe bağlı macOS masaüstü kabuğu (Electron). Sunucuyu kendisi başlatır, arayüzü kendi penceresinde açar.",
+  "type": "module",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "node build.js"
+  },
+  "devDependencies": {
+    "@electron/packager": "20.3.0",
+    "electron": "44.10.1"
+  },
+  "license": "MIT"
+}

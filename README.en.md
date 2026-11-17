@@ -151,6 +151,25 @@ You can change everything later under ⚙️ **Settings** in the top right. To c
 npm run doctor
 ```
 
+### 6. Optional: desktop app (macOS)
+
+If you'd rather have a **qaHere** app in the Dock instead of a terminal and a browser tab:
+
+```bash
+cd desktop && npm install
+```
+
+```bash
+npm run build -- --install
+```
+
+✅ This creates `~/Applications/qaHere.app`; open it from Launchpad or Spotlight. The app starts the server itself and stops it when you quit; if `npm start` is already running in a terminal, it connects to that.
+
+- The app is a thin shell that runs the code from this folder. The **Güncelle** (Update) button updates the app too; if you move the folder, run `npm run build -- --install` again.
+- On first launch macOS may ask for folder access (if the repo is under Documents); click **Allow**.
+- PDFs are saved straight to Downloads; Jira and Slack links open in your default browser.
+- Electron takes about 300 MB and is installed only into `desktop/`; it doesn't affect anyone who doesn't want the desktop app.
+
 ---
 
 ## Usage
@@ -305,6 +324,7 @@ qahere/
 │   └── store.js         Guide archive and checklist ticks (data/guides)
 ├── prompts/rehber.md    Instructions for how the guide is written (sections: bolumler-ozellik.md, bolumler-hata.md)
 ├── templates/guide.css  Guide and PDF styles
+├── desktop/             Optional macOS app (Electron shell)
 ├── public/              UI (dependency-free HTML/CSS/JS) and the guide viewer
 ├── docs/                README images
 └── data/                Settings and generated guides (never committed)
