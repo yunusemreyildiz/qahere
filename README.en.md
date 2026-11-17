@@ -214,6 +214,10 @@ Anything you wonder about while reading, ask with **Rehbere sor** (Ask the guide
 - If you ask something the guide doesn't cover or something current ("what's this issue's status now?", "what does this button say in Figma?"), Claude searches Jira, Slack, Notion, Confluence and Figma read-only and links to what it found. Questions answered from the guide take 15–20 seconds; ones that need the sources can take a minute and use more.
 - The conversation is saved with the guide; **Temizle** (Clear) deletes it. Each question counts against your Claude usage.
 
+### Disabled-source warning
+
+When you press **Rehber oluştur** (Create guide), qaHere first checks the links in the issue's Jira content (Claude Docs, Notion, Confluence, Figma, Slack, Google Sheets/Docs/Drive, Miro, Linear). If any of them is disabled, it asks before generating: **Aç ve başlat** (Enable and start) or **Kapalı kalsın, başlat** (Keep it off and start). That way you don't have to generate the guide a second time because a source was off.
+
 ### Filing a bug with Bugbot
 
 If you run into a bug while testing, describe it to **Bugbot** in the toolbar ("on Android an unregistered email shows 'no account'"). Bugbot compares it with the expected behaviour in the guide (checking Jira, Slack, Notion and Figma if needed) and searches Jira for similar open bugs; if the guide says it's expected, it tells you why. If something is missing (build, steps, the error text) it asks at most two questions, then shows the bug draft as a card.

@@ -7,7 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { jiraConfigured, jiraBaseUrl, listEpics, searchIssues, getIssueTree, parseIssueKey, testConnection, listIssueTypes, listLinkTypes, searchUsers, listIssues, myself, listBoards } from './lib/jira.js';
+import { jiraConfigured, jiraBaseUrl, listEpics, searchIssues, getIssueTree, parseIssueKey, testConnection, listIssueTypes, listLinkTypes, searchUsers, listIssues, myself, listBoards, collectForGuide } from './lib/jira.js';
 import { draftBug, fileBug, draftMockBody } from './lib/bug.js';
 import { proxymanStatus, listFlows, flowText, createMock, createMockFromFlow, setMockEnabled, deleteMock } from './lib/proxyman.js';
 import { getSettings, publicSettings, saveSettings, enabledSources } from './lib/config.js';
@@ -18,6 +18,7 @@ import { checkUpdate, applyUpdate, RESTART_CODE } from './lib/update.js';
 import { askGuide, clearChat, markBugbotFiled } from './lib/ask.js';
 import { notifySlackSelf, slackSelfMessage } from './lib/notify.js';
 import { parseMcpList, inspectConnector } from './lib/connectors.js';
+import { scanSources } from './lib/preflight.js';
 import { screenshot, devices } from './lib/device.js';
 import { readFlow, saveFlow, draftFlow, startRun, getRun, publicRun, cancelRun, activeRun } from './lib/runner.js';
 
@@ -178,6 +179,15 @@ app.post('/api/update', wrap(async (_req, res) => {
   const r = await applyUpdate();
   res.json(r);
   if (r.updated && r.restart === 'auto') setTimeout(() => process.exit(RESTART_CODE), 300);
+}));
+
+// Üretimden önce: işte kapalı bir kaynağa bağlantı var mı? (Jira verisi saklanır, üretim yeniden çekmez.)
+app.post('/api/guides/preflight', wrap(async (req, res) => {
+  const key = parseIssueKey(req.body?.key);
+  if (!key) return res.status(400).json({ error: 'Geçerli bir issue anahtarı gerekli (örn. PROJ-123).' });
+  if (!jiraConfigured()) return res.json({ sources: [], connectors: [], missing: 0 });
+  try { res.json(scanSources((await collectForGuide(key, () => {}, { fresh: true })).text)); }
+  catch { res.json({ sources: [], connectors: [], missing: 0 }); } // ön kontrol üretimi engellemez
 }));
 
 app.post('/api/guides', wrap(async (req, res) => {

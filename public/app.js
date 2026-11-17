@@ -1158,6 +1158,57 @@ function denialNotes(g) {
 async function startJob(key) {
   const btn = $('#genBtn');
   btn.disabled = true;
+  const label = btn.textContent;
+  btn.textContent = 'Kaynaklar kontrol ediliyor…';
+  // Üretimden önce: işte kapalı bir kaynağa bağlantı varsa şimdi sor; sonradan "yeniden oluştur" gerekmesin.
+  const pre = await send('/api/guides/preflight', 'POST', { key }).catch(() => null);
+  btn.textContent = label;
+  if (pre?.missing) {
+    const go = await askMissingSources(pre);
+    if (go === null) { btn.disabled = false; return; }
+  }
+  await runJob(key);
+}
+
+/** Kapalı kaynakları sorar. true: açıldı, false: kapalı kalsın, null: vazgeçildi. */
+function askMissingSources(pre) {
+  return new Promise((resolve) => {
+    const off = [...pre.sources, ...pre.connectors].filter((x) => !x.enabled);
+    const name = (x) => (x.name || '').replace(/^claude\.ai\s+/i, '');
+    const msg = h('div', {});
+    let decided = false;
+    const done = (v) => { if (decided) return; decided = true; closeSheet(); resolve(v); };
+    const openBtn = h('button', { class: 'btn sm', type: 'button', onclick: async () => {
+      openBtn.disabled = true; skipBtn.disabled = true; openBtn.textContent = 'Açılıyor…'; msg.replaceChildren();
+      try {
+        const sources = { ...state.config.sources };
+        for (const x of pre.sources) if (!x.enabled) sources[x.key] = true;
+        const connectors = JSON.parse(JSON.stringify(state.config.connectors || {}));
+        for (const x of pre.connectors.filter((c) => !c.enabled)) {
+          openBtn.textContent = `${name(x)} araçları listeleniyor…`;
+          try {
+            const r = await send('/api/connectors/inspect', 'POST', { name: x.name });
+            if (r.read.length) connectors[x.name] = { enabled: true, tools: r.read, skipped: r.skipped };
+          } catch (e) { msg.append(h('div', { class: 'msg warn' }, `${name(x)} açılamadı: ${e.message}`)); }
+        }
+        applyConfig(await send('/api/settings', 'PUT', { sources, connectors }));
+        done(true);
+      } catch (e) { msg.replaceChildren(h('div', { class: 'msg bad' }, e.message)); openBtn.disabled = false; skipBtn.disabled = false; openBtn.textContent = 'Aç ve başlat'; }
+    } }, 'Aç ve başlat');
+    const skipBtn = h('button', { class: 'btn plain sm', type: 'button', onclick: () => done(false) }, 'Kapalı kalsın, başlat');
+    openSheet('Bu işte kapalı kaynaklara bağlantı var', h('div', {},
+      h('p', {}, 'Rehber üretimi birkaç dakika sürer ve kullanım hakkından düşer. Bu kaynaklar kapalı kalırsa içerikleri rehbere giremez; sonradan eklemek için yeniden üretmen gerekir.'),
+      h('ul', {}, ...off.map((x) => h('li', {}, h('b', {}, name(x)), ` · ${x.count} bağlantı`))),
+      h('p', { class: 'hint' }, 'Açınca yalnızca okuma araçları açılır; ayarı sonradan Ayarlar → Kaynaklar\'dan değiştirebilirsin. Bağlantı claude.ai\'de girişli değilse yine okunamaz.'),
+      msg),
+    [h('button', { class: 'btn link sm', type: 'button', onclick: () => done(null) }, 'Vazgeç'), skipBtn, openBtn]);
+    $('#sheet').addEventListener('close', () => done(null), { once: true });
+  });
+}
+
+async function runJob(key) {
+  const btn = $('#genBtn');
+  btn.disabled = true;
   try {
     const { jobId } = await send('/api/guides', 'POST', { key, notes: $('#notes')?.value || '' });
     runningKey = key; paintBusy();

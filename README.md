@@ -212,6 +212,10 @@ Rehberi okurken aklına takılanı araç çubuğundaki **Rehbere sor**'dan sorar
 - Rehberde olmayan ya da güncel bir şey sorarsan ("bu iş şimdi hangi durumda?", "Figma'da bu butonun metni ne?") Claude Jira, Slack, Notion, Confluence ve Figma'da yalnızca okuyarak arar ve bulduğu yerin bağlantısını verir. Rehberden yanıtlanan soru 15–20 saniye sürer; kaynaklara bakması gereken soru 1 dakikayı bulabilir ve daha çok kullanım harcar.
 - Konuşma rehberle birlikte saklanır; **Temizle** siler. Her soru Claude kullanım hakkından düşer.
 
+### Kapalı kaynak uyarısı
+
+**Rehber oluştur**'a basınca qaHere önce işin Jira içeriğindeki bağlantılara bakar (Claude Docs, Notion, Confluence, Figma, Slack, Google Sheets/Docs/Drive, Miro, Linear). Bunlardan kapalı olan varsa üretim başlamadan sorar: **Aç ve başlat** ya da **Kapalı kalsın, başlat**. Böylece "o kaynak kapalıydı" diye rehberi ikinci kez üretmen gerekmez.
+
 ### Bugbot ile hata açmak
 
 Test ederken bir hataya denk geldiysen araç çubuğundaki **Bugbot**'a anlat ("Android'de kayıtsız e-postada 'hesap yok' yazıyor"). Bugbot rehberdeki beklenen davranışla karşılaştırır (gerekirse Jira, Slack, Notion ve Figma'ya da bakar), Jira'da benzer açık kayıt var mı arar; rehbere göre bu bir hata değilse dayanağıyla söyler, eksik bilgi varsa (build, adımlar, hata metni) en çok iki soru sorar ve kayıt taslağını bir kart olarak çıkarır.
