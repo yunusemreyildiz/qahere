@@ -210,6 +210,14 @@ Rehberi okurken aklına takılanı araç çubuğundaki **Rehbere sor**'dan sorar
 - Rehberde olmayan bir şey için **Kaynaklara da bak**'ı aç: Claude Jira'da ve açık kaynaklarda (Slack, Notion…) yalnızca okuyarak arar, bulduğu yerin bağlantısını verir. Daha yavaştır ve bir soru, araçsız sorunun yaklaşık on katı kullanım harcar.
 - Konuşma rehberle birlikte saklanır; **Temizle** siler. Her soru Claude kullanım hakkından düşer.
 
+### Bugbot ile hata açmak
+
+Test ederken bir hataya denk geldiysen araç çubuğundaki **Bugbot**'a anlat ("Android'de kayıtsız e-postada 'hesap yok' yazıyor"). Bugbot rehberdeki beklenen davranışla karşılaştırır; rehbere göre bu bir hata değilse dayanağıyla söyler, eksik bilgi varsa (build, adımlar, hata metni) en çok iki soru sorar ve kayıt taslağını bir kart olarak çıkarır.
+
+- Ekran görüntüsünü panele yapıştırabilirsin (⌘V); Claude'a gönderilmez, kayda eklenir.
+- **Kaydı hazırla** her zamanki önizleme penceresini dolu açar; eşleşen kontrol maddesi varsa kayıt ona bağlanır. Onaylamadan hiçbir şey açılmaz.
+- Slack kaynağı açıksa önizlemede **Kayıt açılınca Slack'ten bana bildir** işaretlidir: kayıt açılınca kendine (Slack'teki kendi DM'ine) "kayıt açıldı" mesajı gider. Mesajı qaHere hazırlar, Claude'un Slack bağlantısı yalnızca sana iletir.
+
 ### Hata kaydı açmak
 
 Bir maddede platform düğmesinden **Kaldı**'yı seçince hata kaydı penceresi açılır:
@@ -344,7 +352,9 @@ qahere/
 │   ├── jira.js          Jira REST istemcisi (yalnızca okuma)
 │   ├── generate.js      Claude Code'u arka planda çalıştırır, çıktıyı temizler
 │   ├── bug.js           Hata kaydı taslağı ve Jira'da açma
-│   ├── ask.js           Rehbere sor (soru-yanıt, yalnızca okuma)
+│   ├── ask.js           Rehbere sor ve Bugbot (araçsız sohbet)
+│   ├── notify.js        Bugbot kaydını Slack'ten kişinin kendisine bildirme
+│   ├── notion.js        Herkese açık Notion sayfalarını okuma
 │   ├── proxyman.js      Proxyman: istekler ve mock kuralları
 │   ├── runner.js        Maestro akışı yazdırma ve koşu
 │   ├── device.js        Simülatör/emülatör bulma, ekran görüntüsü

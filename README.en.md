@@ -212,6 +212,14 @@ Anything you wonder about while reading, ask with **Rehbere sor** (Ask the guide
 - For something the guide doesn't cover, turn on **Kaynaklara da bak** (Also check sources): Claude searches Jira and your enabled sources (Slack, Notion…) read-only and links to what it found. It's slower, and a question uses roughly ten times as much as a plain one.
 - The conversation is saved with the guide; **Temizle** (Clear) deletes it. Each question counts against your Claude usage.
 
+### Filing a bug with Bugbot
+
+If you run into a bug while testing, describe it to **Bugbot** in the toolbar ("on Android an unregistered email shows 'no account'"). Bugbot compares it with the expected behaviour in the guide; if the guide says it's expected, it tells you why. If something is missing (build, steps, the error text) it asks at most two questions, then shows the bug draft as a card.
+
+- Paste screenshots into the panel (⌘V); they aren't sent to Claude, they're attached to the bug.
+- **Kaydı hazırla** (Prepare the bug) opens the usual preview window filled in; if a checklist item matches, the bug is linked to it. Nothing is filed until you confirm.
+- If the Slack source is on, the preview has **Kayıt açılınca Slack'ten bana bildir** (Notify me on Slack) checked: once the bug is filed you get a "bug filed" message in your own Slack DM. qaHere writes the message; Claude's Slack connection only delivers it to you.
+
 ### Filing a bug
 
 Pick **Kaldı** (Failed) from an item's platform button and the bug window opens:
@@ -346,7 +354,9 @@ qahere/
 │   ├── jira.js          Jira REST client (read-only)
 │   ├── generate.js      Runs Claude Code in the background, cleans the output
 │   ├── bug.js           Bug drafts and filing in Jira
-│   ├── ask.js           Ask the guide (Q&A, read-only)
+│   ├── ask.js           Ask the guide and Bugbot (chat, no tools)
+│   ├── notify.js        Slack notice to yourself for Bugbot bugs
+│   ├── notion.js        Reads publicly shared Notion pages
 │   ├── proxyman.js      Proxyman: requests and mock rules
 │   ├── runner.js        Writing and running Maestro flows
 │   ├── device.js        Finding simulators/emulators, screenshots

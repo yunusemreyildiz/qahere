@@ -10,12 +10,13 @@ import { fileURLToPath } from 'node:url';
 import { jiraConfigured, jiraBaseUrl, listEpics, searchIssues, getIssueTree, parseIssueKey, testConnection, listIssueTypes, listLinkTypes, searchUsers, listIssues, myself, listBoards } from './lib/jira.js';
 import { draftBug, fileBug, draftMockBody } from './lib/bug.js';
 import { proxymanStatus, listFlows, flowText, createMock, createMockFromFlow, setMockEnabled, deleteMock } from './lib/proxyman.js';
-import { getSettings, publicSettings, saveSettings } from './lib/config.js';
+import { getSettings, publicSettings, saveSettings, enabledSources } from './lib/config.js';
 import { generateGuide } from './lib/generate.js';
 import { saveGuide, listGuides, deleteGuide, guidePaths, dataDir, setResults, guideHtml, addBug, updateMeta } from './lib/store.js';
 import { findBrowser, renderPdf } from './lib/pdf.js';
 import { checkUpdate, applyUpdate, RESTART_CODE } from './lib/update.js';
-import { askGuide, clearChat } from './lib/ask.js';
+import { askGuide, clearChat, markBugbotFiled } from './lib/ask.js';
+import { notifySlackSelf, slackSelfMessage } from './lib/notify.js';
 import { screenshot, devices } from './lib/device.js';
 import { readFlow, saveFlow, draftFlow, startRun, getRun, publicRun, cancelRun, activeRun } from './lib/runner.js';
 
@@ -239,15 +240,30 @@ app.delete('/api/guides/:key/:id', wrap(async (req, res) => {
 
 // Rehbere sor: yanıt satır satır JSON olarak akar (step / delta / reset / done / error).
 const asking = new Set();
-app.post('/api/guides/:key/:id/ask', wrap(async (req, res) => {
+app.post('/api/guides/:key/:id/:mode(ask|bugbot)', wrap(async (req, res) => {
   const question = String(req.body?.question || '').trim().slice(0, 2000);
   if (!question) return res.status(400).json({ error: 'Bir soru yaz.' });
-  const k = `${req.params.key}/${req.params.id}`;
+  const mode = req.params.mode;
+  const k = `${req.params.key}/${req.params.id}/${mode}`;
   if (asking.has(k)) return res.status(409).json({ error: 'Bu rehbere sorulan önceki soru hâlâ yanıtlanıyor.' });
   asking.add(k);
   let run;
   try {
-    run = await askGuide({ key: req.params.key, id: req.params.id, question, deep: Boolean(req.body?.deep), onEvent: (e) => res.write(`${JSON.stringify(e)}\n`) });
+    // Bugbot yanıtının sonundaki gizli taslak satırı ekrana akmaz.
+    let held = '';
+    const onEvent = (e) => {
+      if (mode === 'bugbot' && e.type === 'delta') {
+        held += e.text;
+        const cut = held.indexOf('<!--');
+        if (cut === -1) { const safe = held.length > 4 ? held.slice(0, -4) : ''; if (safe) res.write(`${JSON.stringify({ type: 'delta', text: safe })}\n`); held = held.slice(safe.length); }
+        else { if (cut > 0) res.write(`${JSON.stringify({ type: 'delta', text: held.slice(0, cut) })}\n`); held = held.slice(cut); }
+        return;
+      }
+      if (e.type === 'reset') held = '';
+      res.write(`${JSON.stringify(e)}\n`);
+    };
+    const platform = ['ios', 'android', 'both'].includes(req.body?.platform) ? req.body.platform : undefined;
+    run = await askGuide({ key: req.params.key, id: req.params.id, question, deep: Boolean(req.body?.deep), mode, platform, onEvent });
   } catch (e) { asking.delete(k); throw e; }
   res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
   res.setHeader('Cache-Control', 'no-store');
@@ -261,9 +277,22 @@ app.post('/api/guides/:key/:id/ask', wrap(async (req, res) => {
     if (!res.writableEnded) res.end(`${JSON.stringify({ type: 'error', message: e.message })}\n`);
   } finally { asking.delete(k); }
 }));
-app.delete('/api/guides/:key/:id/chat', wrap(async (req, res) => {
-  await clearChat(req.params.key, req.params.id);
+app.delete('/api/guides/:key/:id/:mode(chat|bugbot)', wrap(async (req, res) => {
+  await clearChat(req.params.key, req.params.id, req.params.mode === 'bugbot' ? 'bugbot' : 'ask');
   res.json({ ok: true });
+}));
+app.post('/api/guides/:key/:id/bugbot/filed', wrap(async (req, res) => {
+  const { key, id } = req.params;
+  const at = String(req.body?.at || '');
+  const bug = req.body?.bug;
+  const notify = Boolean(req.body?.notify) && enabledSources().includes('slack');
+  const ok = await markBugbotFiled(key, id, at, bug, notify ? { slack: 'sending' } : {});
+  res.json({ ok, slack: ok && notify ? 'sending' : null });
+  if (!ok || !notify) return;
+  // Kullanıcı önizlemede "Slack'ten bana bildir"i onayladı: mesajı qaHere hazırlar, Claude yalnızca kullanıcının kendisine iletir.
+  const r = await notifySlackSelf(slackSelfMessage({ bug, storyKey: parseIssueKey(key), summary: String(req.body?.summary || '') }));
+  await markBugbotFiled(key, id, at, bug, { slack: r.ok ? 'sent' : `error: ${r.error}` }).catch(() => {});
+  if (!r.ok) console.warn('Slack bildirimi gönderilemedi:', r.error);
 }));
 
 // Kontrol maddelerinin platform sonuçları. PDF bir sonraki indirmede bunlarla yeniden üretilir.

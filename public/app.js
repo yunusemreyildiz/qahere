@@ -812,9 +812,13 @@ function renderGuides(key, guides, selectedId) {
     ...guides.map((x, i) => { const o = h('option', { value: x.id }, `${fmtDate(x.createdAt)}${i === 0 ? ' (son)' : ''}`); if (x.id === g.id) o.selected = true; return o; })) : null;
   const kidsBtn = state.kids ? h('button', { class: 'btn plain sm', type: 'button', onclick: () => openSheet(`Alt işler (${state.kids.count})`, state.kids.render(), [h('button', { class: 'btn sm', type: 'button', onclick: closeSheet }, 'Kapat')]) }, `Alt işler (${state.kids.count})`) : null;
 
-  const ask = askPanel(g);
-  const askBtn = h('button', { class: 'btn plain sm askbtn', type: 'button', 'aria-expanded': String(ask.isOpen()), onclick: () => { ask.toggle(); askBtn.setAttribute('aria-expanded', String(ask.isOpen())); } }, 'Rehbere sor');
-  ask.onClose = () => askBtn.setAttribute('aria-expanded', 'false');
+  const ask = askPanel(g, { frame });
+  // Araç çubuğunda iki düğme, aynı panelin iki sekmesi: açık sekmenin düğmesi panel kapatır.
+  const panelBtn = (t, label) => h('button', { class: 'btn plain sm askbtn', type: 'button', onclick: () => (ask.isOpen() && ask.tab() === t ? ask.close() : ask.open(t)) }, label);
+  const askBtn = panelBtn('ask', 'Rehbere sor');
+  const botBtn = panelBtn('bugbot', 'Bugbot');
+  ask.onChange = () => { for (const [b, t] of [[askBtn, 'ask'], [botBtn, 'bugbot']]) b.setAttribute('aria-expanded', String(ask.isOpen() && ask.tab() === t)); };
+  ask.onChange();
 
   box.replaceChildren(
     h('div', { class: 'gbar' },
@@ -822,7 +826,7 @@ function renderGuides(key, guides, selectedId) {
       h('div', { class: 'gtitle' }, h('h2', {}, `${fmtDate(g.createdAt)} tarihli rehber`), h('div', { class: 'sub' }, stats)),
       progress,
       h('div', { class: 'acts' },
-        version, kidsBtn, mocksBtn, askBtn, regen,
+        version, kidsBtn, mocksBtn, askBtn, botBtn, regen,
         h('a', { class: 'btn plain sm', href: `${base}.html`, target: '_blank', rel: 'noopener', title: 'Tam rapor, düz sırayla' }, 'Yeni sekmede aç'),
         h('a', { class: 'btn sm', href: `${base}.pdf` }, 'PDF indir'),
         del)),
@@ -832,6 +836,7 @@ function renderGuides(key, guides, selectedId) {
 
 // ---- Rehbere sor: rehberin yanında açılan soru-yanıt paneli ----
 const ASK_OPEN = 'qahere.askOpen';
+const ASK_TAB = 'qahere.askTab';
 const ASK_SUGGEST = ['Teste başlamadan neyi hazırlamam gerekiyor?', 'Hangi maddeler henüz bitmedi?', 'Kaynaklar arasındaki çelişkileri kısaca özetle.'];
 
 /** Yanıttaki sade biçimi (paragraf, "- " madde, **kalın**, https bağlantı) güvenli DOM'a çevirir. */
@@ -854,35 +859,130 @@ function richText(text) {
   return frag;
 }
 
-function askPanel(g) {
-  const api_ = { el: null, onClose: null, isOpen: () => !el.hidden, toggle: () => (el.hidden ? open() : close()) };
+/**
+ * Rehberin yanındaki panel: iki sekme. "Rehbere sor" soru-yanıt; "Bugbot" karşılaşılan hatayı konuşup kayıt taslağı çıkarır,
+ * taslak mevcut önizle-onayla penceresine gider (Jira'ya yalnızca qaHere, kullanıcının onayıyla yazar).
+ */
+function askPanel(g, { frame }) {
+  const api_ = { el: null, onChange: null, isOpen: () => !el.hidden, tab: () => tab, open: (t) => open(t), close: () => close() };
+  let tab = store.get(ASK_TAB) === 'bugbot' ? 'bugbot' : 'ask';
+  const views = { ask: chatView(g, 'ask', { frame }), bugbot: chatView(g, 'bugbot', { frame }) };
+  const tabs = h('div', { class: 'ask-tabs', role: 'tablist' });
+  const paintTabs = () => {
+    tabs.replaceChildren(...[['ask', 'Rehbere sor'], ['bugbot', 'Bugbot']].map(([k, label]) =>
+      h('button', { type: 'button', role: 'tab', 'aria-selected': String(tab === k), class: tab === k ? 'on' : '', onclick: () => { tab = k; store.set(ASK_TAB, k); paint(); } }, label)));
+  };
+  const body = h('div', { class: 'ask-body' });
+  const paint = () => { paintTabs(); body.replaceChildren(views[tab].el); views[tab].shown(); api_.onChange?.(); };
+  const el = h('aside', { class: 'ask', 'aria-label': 'Rehber paneli', hidden: store.get(ASK_OPEN) !== '1' },
+    h('div', { class: 'ask-head' }, tabs,
+      h('button', { class: 'iconbtn', type: 'button', 'aria-label': 'Kapat', title: 'Kapat', onclick: () => close() }, '×')),
+    body);
+  function open(t) { if (t) { tab = t; store.set(ASK_TAB, t); } el.hidden = false; store.set(ASK_OPEN, '1'); paint(); }
+  function close() { el.hidden = true; store.set(ASK_OPEN, ''); Object.values(views).forEach((v) => v.abort()); api_.onChange?.(); }
+  api_.el = el;
+  paint();
+  return api_;
+}
+
+const BOT_PL = [['ios', 'iOS'], ['android', 'Android'], ['both', 'İkisi']];
+
+/** Tek bir sohbet: "ask" (rehbere sor) ya da "bugbot". */
+function chatView(g, mode, { frame }) {
+  const bot = mode === 'bugbot';
+  const field = bot ? 'bugbot' : 'chat';
   const thread = h('div', { class: 'ask-thread', 'aria-live': 'polite' });
-  const input = h('textarea', { rows: '2', placeholder: 'Rehberle ilgili sorunu yaz', 'aria-label': 'Soru' });
+  const input = h('textarea', { rows: '2', placeholder: bot ? 'Ne oldu? Hangi ekranda, ne yaptın, ne gördün?' : 'Rehberle ilgili sorunu yaz', 'aria-label': bot ? 'Hatayı anlat' : 'Soru' });
   const deep = h('input', { type: 'checkbox' });
-  const sendBtn = h('button', { class: 'btn sm', type: 'submit' }, 'Sor');
-  const clearBtn = h('button', { class: 'btn plain sm', type: 'button', title: 'Bu rehberin konuşmasını sil', onclick: async () => {
+  const pl = { v: (state.config.profile?.platforms?.length === 1 ? state.config.profile.platforms[0] : 'both') };
+  const plSeg = h('div', { class: 'seg mini' });
+  const paintPl = () => plSeg.replaceChildren(...BOT_PL.map(([k, n]) => h('button', { type: 'button', class: pl.v === k ? 'active' : '', onclick: () => { pl.v = k; paintPl(); } }, n)));
+  paintPl();
+  // Bugbot'a eklenen ekran görüntüleri Claude'a gitmez; kayıt hazırlanırken önizleme penceresine aktarılır.
+  const images = [];
+  const shots = h('div', { class: 'ask-shots' });
+  const paintShots = () => shots.replaceChildren(...images.map((im, i) => h('figure', {},
+    h('img', { src: `data:${im.type};base64,${im.data}`, alt: `Ekran görüntüsü ${i + 1}` }),
+    h('button', { type: 'button', 'aria-label': 'Görseli kaldır', onclick: () => { images.splice(i, 1); paintShots(); } }, '×'))));
+  const addFiles = async (files) => {
+    for (const file of files) if (/^image\/(png|jpeg|gif|webp)$/.test(file.type) && images.length < 10) images.push(await readFile(file));
+    paintShots();
+  };
+  const fileInput = h('input', { type: 'file', accept: 'image/png,image/jpeg,image/gif,image/webp', multiple: true, hidden: true, onchange: () => addFiles([...fileInput.files]) });
+  if (bot) input.addEventListener('paste', (e) => { const files = [...(e.clipboardData?.files || [])]; if (files.length) { e.preventDefault(); addFiles(files); } });
+
+  const sendBtn = h('button', { class: 'btn sm', type: 'submit' }, bot ? 'Gönder' : 'Sor');
+  const clearBtn = h('button', { class: 'btn plain sm', type: 'button', title: 'Bu konuşmayı sil', onclick: async () => {
     if (clearBtn.dataset.armed !== '1') { clearBtn.dataset.armed = '1'; clearBtn.textContent = 'Silmeyi onayla'; setTimeout(() => { clearBtn.dataset.armed = ''; clearBtn.textContent = 'Temizle'; }, 4000); return; }
-    await api(`/api/guides/${g.key}/${g.id}/chat`, { method: 'DELETE' }).catch(() => {});
-    g.chat = []; clearBtn.dataset.armed = ''; clearBtn.textContent = 'Temizle'; paint();
+    await api(`/api/guides/${g.key}/${g.id}/${bot ? 'bugbot' : 'chat'}`, { method: 'DELETE' }).catch(() => {});
+    g[field] = []; clearBtn.dataset.armed = ''; clearBtn.textContent = 'Temizle'; paint();
   } }, 'Temizle');
   let busy = null;
 
-  const exchange = (c) => h('div', { class: 'ask-ex' },
+  const openDraft = (entry) => {
+    const d = entry.draft || {};
+    openBugSheet({
+      g, frame,
+      c: d.item ? d.item - 1 : null,
+      platform: d.platform || entry.platform,
+      item: d.expected || '',
+      section: d.item ? `Bugbot · ${d.item}. madde` : 'Bugbot',
+      preset: { happened: d.happened || entry.q, steps: (d.steps || []).join('\n'), images: [...images], notifyOption: true },
+      onFiled: async (r, { notify, summary }) => {
+        entry.filed = { key: r.key, url: r.url, slack: notify ? 'sending' : undefined };
+        images.length = 0; paintShots(); paint();
+        await send(`/api/guides/${g.key}/${g.id}/bugbot/filed`, 'POST', { at: entry.at, bug: { key: r.key, url: r.url }, notify, summary }).catch(() => {});
+        // Slack bildirimi arka planda gider (birkaç saniye); sonucu kaydı yeniden okuyarak gösterilir.
+        if (notify) for (const wait of [12_000, 25_000, 45_000]) {
+          await new Promise((ok) => setTimeout(ok, wait));
+          const fresh = (await api(`/api/guides?key=${g.key}`).catch(() => ({ guides: [] }))).guides.find((x) => x.id === g.id);
+          const e = fresh?.bugbot?.find((x) => x.at === entry.at);
+          if (e?.filed) { entry.filed = e.filed; paint(); }
+          if (e?.filed?.slack !== 'sending') break;
+        }
+      },
+    });
+  };
+  const draftCard = (entry) => {
+    const d = entry.draft;
+    if (!d || (!d.happened && !d.expected)) return null;
+    if (entry.filed) {
+      const sl = entry.filed.slack;
+      const slackNote = !sl ? null : sl === 'sending' ? 'Slack\'ten sana iletiliyor…' : sl === 'sent' ? 'Slack\'ten sana iletildi.' : `Slack'e iletilemedi: ${String(sl).replace(/^error:\s*/, '')}`;
+      return h('div', { class: 'bb-card filed' }, 'Kayıt açıldı: ', h('a', { href: entry.filed.url, target: '_blank', rel: 'noopener' }, entry.filed.key),
+        slackNote ? h('p', { class: `hint${/^error/.test(sl) ? ' bad' : ''}` }, slackNote) : null);
+    }
+    return h('div', { class: `bb-card${d.ready ? '' : ' wait'}` },
+      h('div', { class: 'bb-row' }, h('b', {}, d.topic || 'Kayıt taslağı'), h('span', { class: 'bb-pl' }, BOT_PL.find(([k]) => k === d.platform)?.[1] || '')),
+      d.happened ? h('p', {}, h('span', {}, 'Gerçekleşen: '), d.happened) : null,
+      d.expected ? h('p', {}, h('span', {}, 'Beklenen: '), d.expected) : null,
+      d.steps?.length ? h('ol', {}, ...d.steps.map((s) => h('li', {}, s))) : null,
+      h('div', { class: 'bb-row' },
+        h('span', { class: 'hint' }, d.ready ? (d.item ? `${d.item}. kontrol maddesine bağlanır` : 'Hazır') : 'Eksik bilgi var; yanıtlayınca güncellenir'),
+        h('button', { class: `btn sm${d.ready ? '' : ' plain'}`, type: 'button', onclick: () => openDraft(entry) }, 'Kaydı hazırla')));
+  };
+  const exchange = (c, last) => h('div', { class: 'ask-ex' },
     h('div', { class: 'ask-q' }, c.q),
     h('div', { class: 'ask-a' }, richText(c.a)),
-    h('div', { class: 'ask-meta' }, [fmtDate(c.at), c.deep ? 'kaynaklara da bakıldı' : 'rehberden', c.stats?.durationMs ? `${Math.max(1, Math.round(c.stats.durationMs / 1000))} sn` : null].filter(Boolean).join(' · ')));
+    bot && last ? draftCard(c) : (bot && c.filed ? draftCard(c) : null),
+    h('div', { class: 'ask-meta' }, [fmtDate(c.at), bot ? null : (c.deep ? 'kaynaklara da bakıldı' : 'rehberden'), c.stats?.durationMs ? `${Math.max(1, Math.round(c.stats.durationMs / 1000))} sn` : null].filter(Boolean).join(' · ')));
 
   function paint() {
-    const chat = Array.isArray(g.chat) ? g.chat : [];
+    const chat = Array.isArray(g[field]) ? g[field] : [];
     clearBtn.hidden = !chat.length;
     if (!chat.length && !busy) {
-      thread.replaceChildren(h('div', { class: 'ask-empty' },
-        h('p', {}, 'Rehberde yazanları ve işaretlediğin kontrolleri bilerek yanıtlar. Rehberde olmayan bir şey için "Kaynaklara da bak"ı aç.'),
-        ...ASK_SUGGEST.map((q) => h('button', { class: 'ask-sug', type: 'button', onclick: () => { input.value = q; submit(); } }, q)),
-        h('p', { class: 'ask-note' }, 'Her soru Claude kullanım hakkından düşer.')));
+      thread.replaceChildren(bot
+        ? h('div', { class: 'ask-empty' },
+          h('p', {}, 'Test ederken karşılaştığın hatayı anlat. Bugbot rehberdeki beklenen davranışla karşılaştırır, eksik bilgiyi sorar ve kayıt taslağını çıkarır; "Kaydı hazırla" ile önizler, onaylarsan qaHere Jira\'da açar.'),
+          h('p', {}, 'Ekran görüntüsünü buraya yapıştırabilirsin (⌘V); Claude\'a gönderilmez, kayda eklenir.'),
+          h('p', { class: 'ask-note' }, 'Her mesaj Claude kullanım hakkından düşer.'))
+        : h('div', { class: 'ask-empty' },
+          h('p', {}, 'Rehberde yazanları ve işaretlediğin kontrolleri bilerek yanıtlar. Rehberde olmayan bir şey için "Kaynaklara da bak"ı aç.'),
+          ...ASK_SUGGEST.map((q) => h('button', { class: 'ask-sug', type: 'button', onclick: () => { input.value = q; submit(); } }, q)),
+          h('p', { class: 'ask-note' }, 'Her soru Claude kullanım hakkından düşer.')));
       return;
     }
-    thread.replaceChildren(...chat.map(exchange));
+    thread.replaceChildren(...chat.map((c, i) => exchange(c, i === chat.length - 1)));
   }
 
   async function submit(e) {
@@ -891,16 +991,17 @@ function askPanel(g) {
     if (!question || busy) return;
     const ctrl = new AbortController();
     const live = h('div', { class: 'ask-a live' });
-    const step = h('div', { class: 'ask-meta' }, deep.checked ? 'Rehbere ve kaynaklara bakılıyor…' : 'Rehbere bakılıyor…');
+    const step = h('div', { class: 'ask-meta' }, bot ? 'Rehberle karşılaştırılıyor…' : deep.checked ? 'Rehbere ve kaynaklara bakılıyor…' : 'Rehbere bakılıyor…');
     busy = ctrl;
-    if (!(g.chat || []).length) thread.replaceChildren();
+    if (!(g[field] || []).length) thread.replaceChildren();
     thread.append(h('div', { class: 'ask-ex' }, h('div', { class: 'ask-q' }, question), live, step));
     thread.scrollTop = thread.scrollHeight;
     input.value = ''; input.disabled = true; deep.disabled = true;
     sendBtn.textContent = 'Durdur'; sendBtn.type = 'button'; sendBtn.onclick = () => ctrl.abort();
     let text = '';
     try {
-      const res = await fetch(`/api/guides/${g.key}/${g.id}/ask`, { method: 'POST', signal: ctrl.signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question, deep: deep.checked }) });
+      const res = await fetch(`/api/guides/${g.key}/${g.id}/${bot ? 'bugbot' : 'ask'}`, { method: 'POST', signal: ctrl.signal, headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(bot ? { question, platform: pl.v } : { question, deep: deep.checked }) });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `Sunucu ${res.status} döndü.`);
       const reader = res.body.getReader();
       const dec = new TextDecoder();
@@ -917,7 +1018,7 @@ function askPanel(g) {
           else if (ev.type === 'reset') { text = ''; live.replaceChildren(); }
           else if (ev.type === 'step') step.textContent = ev.message;
           else if (ev.type === 'error') throw new Error(ev.message);
-          else if (ev.type === 'done') g.chat = [...(g.chat || []), ev.entry];
+          else if (ev.type === 'done') g[field] = [...(g[field] || []), ev.entry];
         }
         thread.scrollTop = thread.scrollHeight;
       }
@@ -931,26 +1032,23 @@ function askPanel(g) {
     } finally {
       busy = null;
       input.disabled = false; deep.disabled = false;
-      sendBtn.textContent = 'Sor'; sendBtn.type = 'submit'; sendBtn.onclick = null;
+      sendBtn.textContent = bot ? 'Gönder' : 'Sor'; sendBtn.type = 'submit'; sendBtn.onclick = null;
       thread.scrollTop = thread.scrollHeight;
       input.focus();
     }
   }
 
-  // Enter gönderir, Shift+Enter yeni satır.
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) submit(e); });
-  const el = h('aside', { class: 'ask', 'aria-label': 'Rehbere sor', hidden: store.get(ASK_OPEN) !== '1' },
-    h('div', { class: 'ask-head' }, h('b', {}, 'Rehbere sor'), clearBtn,
-      h('button', { class: 'iconbtn', type: 'button', 'aria-label': 'Kapat', title: 'Kapat', onclick: () => close() }, '×')),
+  const row = bot
+    ? h('div', { class: 'ask-row' }, plSeg, h('div', { class: 'ask-row-r' },
+      h('button', { class: 'btn plain sm', type: 'button', title: 'Ekran görüntüsü ekle', onclick: () => fileInput.click() }, 'Görsel'), sendBtn))
+    : h('div', { class: 'ask-row' }, h('label', { class: 'ask-deep', title: 'Claude Jira\'da ve açık kaynaklarda okuyarak arar; daha yavaştır ve yaklaşık on kat kullanım harcar.' }, deep, 'Kaynaklara da bak (yavaş)'), sendBtn);
+  const el = h('div', { class: 'ask-view' },
+    h('div', { class: 'ask-sub' }, h('span', {}, bot ? 'Karşılaştığın hatayı konuş, kaydı birlikte hazırlayın.' : 'Rehber hakkında soru sor.'), clearBtn),
     thread,
-    h('form', { class: 'ask-form', onsubmit: submit },
-      input,
-      h('div', { class: 'ask-row' }, h('label', { class: 'ask-deep', title: 'Claude Jira\'da ve açık kaynaklarda okuyarak arar; daha yavaştır ve yaklaşık on kat kullanım harcar.' }, deep, 'Kaynaklara da bak (yavaş)'), sendBtn)));
-  function open() { el.hidden = false; store.set(ASK_OPEN, '1'); paint(); thread.scrollTop = thread.scrollHeight; input.focus(); }
-  function close() { el.hidden = true; store.set(ASK_OPEN, ''); busy?.abort(); api_.onClose?.(); }
-  api_.el = el;
+    h('form', { class: 'ask-form', onsubmit: submit }, bot ? shots : null, input, fileInput, row));
   paint();
-  return api_;
+  return { el, abort: () => busy?.abort(), shown: () => { paint(); thread.scrollTop = thread.scrollHeight; setTimeout(() => input.focus(), 30); } };
 }
 
 // Rehber içi düzen ve işaretleme: public/viewer.{js,css}. Bir kez alınır, her açılışta rehbere satır içi eklenir.
@@ -1075,7 +1173,7 @@ const readFile = (file) => new Promise((resolve, reject) => {
   r.readAsDataURL(file);
 });
 
-function openBugSheet({ g, frame, c, platform, item, section, preset = {} }) {
+function openBugSheet({ g, frame, c, platform, item, section, preset = {}, onFiled }) {
   const f = { platform: ['ios', 'android'].includes(platform) ? platform : 'both', happened: preset.happened || '', expected: item, steps: preset.steps || '', images: preset.images || [], flows: [] };
   const bugCfg = state.config.bug || {};
   let onPaste = null;
@@ -1176,6 +1274,10 @@ function openBugSheet({ g, frame, c, platform, item, section, preset = {} }) {
       h('dt', {}, 'Sprint'), h('dd', {}, sprint ? 'Aktif sprinte alınacak' : 'Backlog'),
       h('dt', {}, 'Görsel'), h('dd', {}, f.images.length ? `${f.images.length} ekran görüntüsü` : 'Yok'),
       h('dt', {}, 'İstek'), h('dd', {}, f.flows.length ? `${f.flows.length} Proxyman isteği (kimlik bilgileri gizlenir)` : 'Yok'));
+    // Bugbot'tan gelen kayıtta: açılınca qaHere kullanıcısına Slack'ten (kendine DM) haber verilir. Kullanıcı kapatabilir.
+    const slackOn = Boolean(preset.notifyOption && state.config.sources?.slack);
+    const notifyBox = h('input', { type: 'checkbox', checked: slackOn });
+    const notifyRow = slackOn ? h('label', { class: 'only-row' }, notifyBox, ' Kayıt açılınca Slack\'ten bana bildir (kendine mesaj; Claude\'un Slack bağlantısıyla)') : null;
     const err = h('div', {});
     const back = h('button', { class: 'btn link sm', type: 'button', onclick: step1 }, 'Geri');
     const copy = h('button', { class: 'btn plain sm', type: 'button', onclick: async () => {
@@ -1185,7 +1287,8 @@ function openBugSheet({ g, frame, c, platform, item, section, preset = {} }) {
       go.disabled = true; back.disabled = true; go.textContent = 'Açılıyor…'; err.replaceChildren();
       try {
         const r = await send('/api/bugs', 'POST', { storyKey: g.key, guideId: g.id, c, platform: pl, summary: title.value, description: desc.value, images: f.images, flows: f.flows.map((x) => x.id) });
-        frame.contentWindow?.postMessage({ qa: 'bug', c, key: r.key, url: r.url }, '*');
+        if (c != null) frame.contentWindow?.postMessage({ qa: 'bug', c, key: r.key, url: r.url }, '*');
+        onFiled?.(r, { notify: Boolean(notifyRow && notifyBox.checked), summary: title.value });
         done();
         openSheet(`${r.key} açıldı`, h('div', { class: 'bugform' },
           h('div', { class: 'msg ok' }, h('a', { href: r.url, target: '_blank', rel: 'noopener' }, `${r.key} · ${title.value}`)),
@@ -1205,6 +1308,7 @@ function openBugSheet({ g, frame, c, platform, item, section, preset = {} }) {
       h('label', { class: 'f' }, 'Açıklama', desc),
       f.images.length ? h('div', { class: 'shots' }, ...f.images.map((im, i) => h('figure', { class: 'shot' }, h('img', { src: `data:${im.type};base64,${im.data}`, alt: `Ekran görüntüsü ${i + 1}` })))) : null,
       facts,
+      notifyRow,
       h('p', { class: 'hint' }, 'Proje, atanan ve sprint kuralı Ayarlar → Hata kaydı bölümünden gelir.'),
       err,
     ), [back, copy, go]);
