@@ -2,7 +2,8 @@
 const $ = (s) => document.querySelector(s);
 
 // Masaüstü uygulamasında (desktop/main.js kullanıcı ajanına "qaHereDesktop" ekler) üst çubuk pencerenin başlığı olur.
-if (/\bqaHereDesktop\b/.test(navigator.userAgent)) {
+const isDesktop = /\bqaHereDesktop\b/.test(navigator.userAgent);
+if (isDesktop) {
   document.documentElement.classList.add('desktop');
   if (/Macintosh/.test(navigator.userAgent)) document.documentElement.classList.add('mac');
 }
@@ -787,18 +788,145 @@ function renderGuides(key, guides, selectedId) {
     ...guides.map((x, i) => { const o = h('option', { value: x.id }, `${fmtDate(x.createdAt)}${i === 0 ? ' (son)' : ''}`); if (x.id === g.id) o.selected = true; return o; })) : null;
   const kidsBtn = state.kids ? h('button', { class: 'btn plain sm', type: 'button', onclick: () => openSheet(`Alt işler (${state.kids.count})`, state.kids.render(), [h('button', { class: 'btn sm', type: 'button', onclick: closeSheet }, 'Kapat')]) }, `Alt işler (${state.kids.count})`) : null;
 
+  const ask = askPanel(g);
+  const askBtn = h('button', { class: 'btn plain sm askbtn', type: 'button', 'aria-expanded': String(ask.isOpen()), onclick: () => { ask.toggle(); askBtn.setAttribute('aria-expanded', String(ask.isOpen())); } }, 'Rehbere sor');
+  ask.onClose = () => askBtn.setAttribute('aria-expanded', 'false');
+
   box.replaceChildren(
     h('div', { class: 'gbar' },
       // İşin başlığı hemen üstte ve rehberin kendisinde yazıyor; burada rehberin ne zaman, nasıl üretildiği.
       h('div', { class: 'gtitle' }, h('h2', {}, `${fmtDate(g.createdAt)} tarihli rehber`), h('div', { class: 'sub' }, stats)),
       progress,
       h('div', { class: 'acts' },
-        version, kidsBtn, mocksBtn, regen,
+        version, kidsBtn, mocksBtn, askBtn, regen,
         h('a', { class: 'btn plain sm', href: `${base}.html`, target: '_blank', rel: 'noopener', title: 'Tam rapor, düz sırayla' }, 'Yeni sekmede aç'),
         h('a', { class: 'btn sm', href: `${base}.pdf` }, 'PDF indir'),
         del)),
     ...denialNotes(g),
-    frame);
+    h('div', { class: 'gbody' }, frame, ask.el));
+}
+
+// ---- Rehbere sor: rehberin yanında açılan soru-yanıt paneli ----
+const ASK_OPEN = 'qahere.askOpen';
+const ASK_SUGGEST = ['Teste başlamadan neyi hazırlamam gerekiyor?', 'Hangi maddeler henüz bitmedi?', 'Kaynaklar arasındaki çelişkileri kısaca özetle.'];
+
+/** Yanıttaki sade biçimi (paragraf, "- " madde, **kalın**, https bağlantı) güvenli DOM'a çevirir. */
+function richText(text) {
+  const frag = document.createDocumentFragment();
+  const inline = (line) => line.split(/(\*\*[^*]+\*\*|https:\/\/[^\s)<>]+)/g).filter(Boolean).map((part) => {
+    if (/^\*\*[^*]+\*\*$/.test(part)) return h('b', {}, part.slice(2, -2));
+    if (/^https:\/\//.test(part)) return h('a', { href: part, target: '_blank', rel: 'noopener' }, part.replace(/^https:\/\//, '').slice(0, 60));
+    return part;
+  });
+  let list = null;
+  for (const raw of String(text).split('\n')) {
+    const line = raw.trim();
+    if (!line) { list = null; continue; }
+    const m = line.match(/^(?:[-*•]|\d+[.)])\s+(.*)$/);
+    if (m) { if (!list) { list = h('ul'); frag.append(list); } list.append(h('li', {}, ...inline(m[1]))); continue; }
+    list = null;
+    frag.append(h('p', {}, ...inline(line.replace(/^#+\s*/, ''))));
+  }
+  return frag;
+}
+
+function askPanel(g) {
+  const api_ = { el: null, onClose: null, isOpen: () => !el.hidden, toggle: () => (el.hidden ? open() : close()) };
+  const thread = h('div', { class: 'ask-thread', 'aria-live': 'polite' });
+  const input = h('textarea', { rows: '2', placeholder: 'Rehberle ilgili sorunu yaz', 'aria-label': 'Soru' });
+  const deep = h('input', { type: 'checkbox' });
+  const sendBtn = h('button', { class: 'btn sm', type: 'submit' }, 'Sor');
+  const clearBtn = h('button', { class: 'btn plain sm', type: 'button', title: 'Bu rehberin konuşmasını sil', onclick: async () => {
+    if (clearBtn.dataset.armed !== '1') { clearBtn.dataset.armed = '1'; clearBtn.textContent = 'Silmeyi onayla'; setTimeout(() => { clearBtn.dataset.armed = ''; clearBtn.textContent = 'Temizle'; }, 4000); return; }
+    await api(`/api/guides/${g.key}/${g.id}/chat`, { method: 'DELETE' }).catch(() => {});
+    g.chat = []; clearBtn.dataset.armed = ''; clearBtn.textContent = 'Temizle'; paint();
+  } }, 'Temizle');
+  let busy = null;
+
+  const exchange = (c) => h('div', { class: 'ask-ex' },
+    h('div', { class: 'ask-q' }, c.q),
+    h('div', { class: 'ask-a' }, richText(c.a)),
+    h('div', { class: 'ask-meta' }, [fmtDate(c.at), c.deep ? 'kaynaklara da bakıldı' : 'rehberden', c.stats?.durationMs ? `${Math.max(1, Math.round(c.stats.durationMs / 1000))} sn` : null].filter(Boolean).join(' · ')));
+
+  function paint() {
+    const chat = Array.isArray(g.chat) ? g.chat : [];
+    clearBtn.hidden = !chat.length;
+    if (!chat.length && !busy) {
+      thread.replaceChildren(h('div', { class: 'ask-empty' },
+        h('p', {}, 'Rehberde yazanları ve işaretlediğin kontrolleri bilerek yanıtlar. Rehberde olmayan bir şey için "Kaynaklara da bak"ı aç.'),
+        ...ASK_SUGGEST.map((q) => h('button', { class: 'ask-sug', type: 'button', onclick: () => { input.value = q; submit(); } }, q)),
+        h('p', { class: 'ask-note' }, 'Her soru Claude kullanım hakkından düşer.')));
+      return;
+    }
+    thread.replaceChildren(...chat.map(exchange));
+  }
+
+  async function submit(e) {
+    e?.preventDefault();
+    const question = input.value.trim();
+    if (!question || busy) return;
+    const ctrl = new AbortController();
+    const live = h('div', { class: 'ask-a live' });
+    const step = h('div', { class: 'ask-meta' }, deep.checked ? 'Rehbere ve kaynaklara bakılıyor…' : 'Rehbere bakılıyor…');
+    busy = ctrl;
+    if (!(g.chat || []).length) thread.replaceChildren();
+    thread.append(h('div', { class: 'ask-ex' }, h('div', { class: 'ask-q' }, question), live, step));
+    thread.scrollTop = thread.scrollHeight;
+    input.value = ''; input.disabled = true; deep.disabled = true;
+    sendBtn.textContent = 'Durdur'; sendBtn.type = 'button'; sendBtn.onclick = () => ctrl.abort();
+    let text = '';
+    try {
+      const res = await fetch(`/api/guides/${g.key}/${g.id}/ask`, { method: 'POST', signal: ctrl.signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question, deep: deep.checked }) });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `Sunucu ${res.status} döndü.`);
+      const reader = res.body.getReader();
+      const dec = new TextDecoder();
+      let buf = '';
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        let i;
+        while ((i = buf.indexOf('\n')) !== -1) {
+          const line = buf.slice(0, i); buf = buf.slice(i + 1);
+          let ev; try { ev = JSON.parse(line); } catch { continue; }
+          if (ev.type === 'delta') { text += ev.text; live.replaceChildren(richText(text)); }
+          else if (ev.type === 'reset') { text = ''; live.replaceChildren(); }
+          else if (ev.type === 'step') step.textContent = ev.message;
+          else if (ev.type === 'error') throw new Error(ev.message);
+          else if (ev.type === 'done') g.chat = [...(g.chat || []), ev.entry];
+        }
+        thread.scrollTop = thread.scrollHeight;
+      }
+      busy = null;
+      paint();
+    } catch (err) {
+      busy = null;
+      step.textContent = ctrl.signal.aborted ? 'Durduruldu.' : err.message;
+      step.classList.add('bad');
+      if (!input.value) input.value = question;
+    } finally {
+      busy = null;
+      input.disabled = false; deep.disabled = false;
+      sendBtn.textContent = 'Sor'; sendBtn.type = 'submit'; sendBtn.onclick = null;
+      thread.scrollTop = thread.scrollHeight;
+      input.focus();
+    }
+  }
+
+  // Enter gönderir, Shift+Enter yeni satır.
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) submit(e); });
+  const el = h('aside', { class: 'ask', 'aria-label': 'Rehbere sor', hidden: store.get(ASK_OPEN) !== '1' },
+    h('div', { class: 'ask-head' }, h('b', {}, 'Rehbere sor'), clearBtn,
+      h('button', { class: 'iconbtn', type: 'button', 'aria-label': 'Kapat', title: 'Kapat', onclick: () => close() }, '×')),
+    thread,
+    h('form', { class: 'ask-form', onsubmit: submit },
+      input,
+      h('div', { class: 'ask-row' }, h('label', { class: 'ask-deep', title: 'Claude Jira\'da ve açık kaynaklarda okuyarak arar; daha yavaştır ve yaklaşık on kat kullanım harcar.' }, deep, 'Kaynaklara da bak (yavaş)'), sendBtn)));
+  function open() { el.hidden = false; store.set(ASK_OPEN, '1'); paint(); thread.scrollTop = thread.scrollHeight; input.focus(); }
+  function close() { el.hidden = true; store.set(ASK_OPEN, ''); busy?.abort(); api_.onClose?.(); }
+  api_.el = el;
+  paint();
+  return api_;
 }
 
 // Rehber içi düzen ve işaretleme: public/viewer.{js,css}. Bir kez alınır, her açılışta rehbere satır içi eklenir.
@@ -1269,7 +1397,10 @@ function openRunSheet({ g, frame, c, platform, item, section }) {
 const UPDATE_LATER = 'qaHere.updateLater';
 const store = { get: (k) => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* yok say */ } } };
 
+const REBUILD_NOTE = 'qaHere.rebuildNote';
+let lastUpdateCheck = 0;
 async function checkForUpdate() {
+  lastUpdateCheck = Date.now();
   try { state.update = await api('/api/update'); } catch { return; }
   const u = state.update;
   // "Sonra" denen sürüm bir daha sorulmaz; daha yeni bir commit gelince yeniden sorulur.
@@ -1287,7 +1418,10 @@ function showUpdate(u) {
       if (r.restart === 'auto') {
         go.textContent = 'Yeniden başlatılıyor…';
         await waitForRestart(r.version);
-        location.reload();
+        if (r.rebuild && isDesktop) store.set(REBUILD_NOTE, r.version);
+        // Pencere/menü kodu da değiştiyse masaüstü uygulaması kendini baştan açar (desktop/main.js bu adresi yakalar).
+        if (r.shell && isDesktop) location.href = '/__desktop/relaunch';
+        else location.reload();
       } else {
         go.textContent = 'İndirildi';
         msg.replaceChildren(h('div', { class: 'msg ok' }, 'Yeni sürüm indirildi. Açmak için terminalde qaHere\'yi kapat (Ctrl+C) ve yeniden ', h('code', {}, 'npm start'), ' çalıştır. Bundan sonraki güncellemeler kendiliğinden yeniden başlar.'));
@@ -1328,6 +1462,16 @@ async function waitForRestart(version) {
   loadHealth().then(() => { if (!state.current) showWelcome(); });
   await loadList();
   if (state.config.setupDone) checkForUpdate();
+  // Uygulama uzun süre açık kalır: yarım saatte bir ve pencereye dönünce (en az 10 dk arayla) yeniden bakılır.
+  const recheck = () => { if (state.config.setupDone && Date.now() - lastUpdateCheck > 10 * 60_000) checkForUpdate(); };
+  setInterval(recheck, 30 * 60_000);
+  window.addEventListener('focus', recheck);
+  if (isDesktop && store.get(REBUILD_NOTE)) {
+    openSheet('Uygulamayı yeniden kur', h('div', {},
+      h('p', {}, 'Son güncelleme masaüstü uygulamasının altyapısını (Electron) da yeniledi. qaHere çalışmaya devam eder; yeni altyapıya geçmek için qaHere klasöründe bir kez şunu çalıştır:'),
+      h('pre', {}, h('code', {}, 'npm run desktop'))),
+    [h('button', { class: 'btn sm', type: 'button', onclick: () => { store.set(REBUILD_NOTE, ''); closeSheet(); } }, 'Tamam')]);
+  }
   const key = (location.hash.slice(1).toUpperCase().match(/^[A-Z][A-Z0-9]+-\d+$/) || [])[0];
   if (key) openIssue(key);
 })();

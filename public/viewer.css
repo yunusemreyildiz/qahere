@@ -169,6 +169,7 @@ html.live .foot{margin-top:40px;border-top:1px solid var(--sep)}
   html.live .rail .links,html.live .rail .grp,html.live .rail .subs,html.live .only,html.live .plrow{display:none}
   html.live .meter{margin:0;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;padding:8px 10px}
   html.live .nums b{font-size:20px}
+  html.live .failn{margin-left:10px;white-space:nowrap}
   html.live .bar{margin:0}
   html.live .next{width:auto;padding:8px 12px}
   html.live .doc{padding:20px 16px 60px}

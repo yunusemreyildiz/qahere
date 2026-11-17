@@ -335,7 +335,44 @@ html.desktop.mac .onboard::before{content:"";position:fixed;inset:0 0 auto;heigh
 .gtitle{min-width:0;flex:1 1 220px}
 .gtitle h2{font-size:15px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .gtitle .sub{font-size:12.5px;color:var(--faint)}
-.gview .viewer{flex:1;height:auto;min-height:420px;border-radius:0 0 var(--r) var(--r);border-color:var(--rule)}
+.gbody{flex:1;min-height:0;display:flex;position:relative}
+.gview .viewer{flex:1;min-width:0;height:auto;min-height:420px;border-radius:0 0 var(--r) var(--r);border-color:var(--rule)}
+.gbody:has(> .ask:not([hidden])) > .viewer{border-bottom-right-radius:0}
+
+/* Rehbere sor: rehberin sağında, aynı kartın parçası. Soru solda vurgu çizgisiyle, yanıt düz metin;
+   soru-yanıt çiftleri etiket dilindeki kesik çizgiyle ayrılır. */
+.askbtn[aria-expanded="true"]{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-text)}
+.ask{width:380px;flex:none;display:flex;flex-direction:column;min-height:0;background:var(--sheet);border:1px solid var(--rule);border-left:1px solid var(--rule);border-top:0;border-radius:0 0 var(--r) 0}
+.ask-head{flex:none;display:flex;align-items:center;gap:8px;padding:8px 8px 8px 16px;border-bottom:1px solid var(--rule);border-top:1px solid var(--rule)}
+.ask-head b{flex:1;font-size:14px}
+.ask-head .iconbtn{width:30px;height:30px;font-size:20px;line-height:1}
+.ask-thread{flex:1;min-height:0;overflow:auto;padding:16px 18px 20px;font-size:14px;line-height:1.55}
+.ask-ex + .ask-ex{margin-top:18px;padding-top:16px;border-top:1px dashed var(--rule-2)}
+.ask-q{font-weight:600;padding-left:11px;border-left:2px solid var(--accent);white-space:pre-wrap;overflow-wrap:anywhere}
+.ask-a{margin-top:8px;overflow-wrap:anywhere}
+.ask-a p{margin:0 0 8px} .ask-a ul{margin:0 0 8px;padding-left:18px} .ask-a li{margin:2px 0}
+.ask-a a{color:var(--accent-text)}
+.ask-a.live:empty::before{content:"";display:block;width:34px;height:8px;margin:6px 0;border-radius:99px;
+  background:linear-gradient(90deg,var(--rule-2) 0 8px,transparent 8px 13px,var(--rule-2) 13px 21px,transparent 21px 26px,var(--rule-2) 26px);
+  animation:askwait 1s ease-in-out infinite alternate}
+@keyframes askwait{to{opacity:.35}}
+.ask-meta{margin-top:6px;font-size:12px;color:var(--faint)}
+.ask-meta.bad{color:var(--bad)}
+.ask-empty p{margin:0 0 12px;color:var(--graphite)}
+.ask-sug{display:block;width:100%;text-align:left;border:1px solid var(--rule);background:var(--paper);border-radius:var(--r);padding:9px 12px;margin:0 0 6px;font-size:13.5px;cursor:pointer}
+.ask-sug:hover{border-color:var(--accent)}
+.ask-note{font-size:12px;color:var(--faint)!important;margin-top:14px!important}
+.ask-form{flex:none;padding:10px 12px 12px;border-top:1px solid var(--rule)}
+.ask-form textarea{width:100%;display:block;resize:none;height:auto;min-height:0;font-family:var(--sans);font-size:14px;line-height:1.45;padding:9px 11px;border:1px solid var(--rule-2);border-radius:var(--r);background:var(--paper)}
+.ask-form textarea:focus{outline:2px solid var(--accent-soft);border-color:var(--accent)}
+.ask-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:8px}
+.ask-deep{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--graphite);cursor:pointer}
+.ask-deep input{accent-color:var(--accent);margin:0}
+@media (max-width:1180px){
+  .ask{position:absolute;top:0;right:0;bottom:0;z-index:4;width:min(380px,92%);box-shadow:-12px 0 32px rgba(0,0,0,.14)}
+  .gbody:has(> .ask:not([hidden])) > .viewer{border-bottom-right-radius:var(--r)}
+}
+@media (prefers-reduced-motion:reduce){ .ask-a.live:empty::before{animation:none} }
 .gview > .callout,.gview > .msg{margin:0!important;border-radius:0;border-left:1px solid var(--rule);border-right:1px solid var(--rule)}
 .checks{display:flex;align-items:center;gap:10px;flex:0 1 auto}
 .checks:empty{display:none}

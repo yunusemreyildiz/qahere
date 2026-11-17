@@ -200,6 +200,16 @@ Aynı anda tek rehber üretilir; ikincisi için ilkinin bitmesini bekle ya da **
 
 **Sen kimsin?** İlk açılışta (ve Ayarlar'da) rolünü, test ettiğin platformları ve takımının Jira panolarını seçersin. Liste "Takımım" ile bu panolara göre süzülür; rol ve platformlar rehber yazılırken Claude'a da söylenir. Tek platform seçtiysen kontrol listesi o platform için yazılır.
 
+### Rehbere sormak
+
+Rehberi okurken aklına takılanı araç çubuğundaki **Rehbere sor**'dan sorarsın; panel rehberin yanında açılır, rehber okunmaya devam eder.
+
+<p><img src="docs/screenshots/ask.png" alt="Rehbere sor paneli: soru ve rehbere dayanan yanıt"></p>
+
+- Claude rehberde yazanları ve işaretlediğin kontrolleri bilerek yanıtlar, dayandığı bölümü söyler. "Hangi maddeler bitmedi?" gibi sorular da çalışır. Yanıt yaklaşık 15–20 saniyede yazılmaya başlar.
+- Rehberde olmayan bir şey için **Kaynaklara da bak**'ı aç: Claude Jira'da ve açık kaynaklarda (Slack, Notion…) yalnızca okuyarak arar, bulduğu yerin bağlantısını verir. Daha yavaştır ve bir soru, araçsız sorunun yaklaşık on katı kullanım harcar.
+- Konuşma rehberle birlikte saklanır; **Temizle** siler. Her soru Claude kullanım hakkından düşer.
+
 ### Hata kaydı açmak
 
 Bir maddede platform düğmesinden **Kaldı**'yı seçince hata kaydı penceresi açılır:
@@ -238,7 +248,7 @@ Proxyman açıkken (uygulamanın trafiği Proxyman'den geçiyor ve HTTPS için S
 
 ### Güncelleme
 
-qaHere açılırken GitHub'da yeni sürüm olup olmadığına bakar. Varsa **Yeni sürüm var** penceresi neyin değiştiğini gösterir; **Güncelle**'ye basınca yeni sürüm indirilir ve qaHere kendini yeniden başlatır. Ayarların, rehberlerin ve işaretlerin olduğu gibi kalır. Elle denetlemek için: sağ üstte **Durum → Yeni sürümü denetle**.
+qaHere açılırken ve açık kaldığı sürece yarım saatte bir GitHub'da yeni sürüm olup olmadığına bakar. Varsa **Yeni sürüm var** penceresi neyin değiştiğini gösterir; **Güncelle**'ye basınca yeni sürüm indirilir ve qaHere kendini yeniden başlatır. Masaüstü uygulamasında pencere ve menü de güncellenir; gerekirse uygulama kendini kapatıp yeniden açar. Yalnızca altyapı (Electron) yenilendiğinde bir kez `npm run desktop` çalıştırman istenir. Ayarların, rehberlerin ve işaretlerin olduğu gibi kalır. Elle denetlemek için: sağ üstte **Durum → Yeni sürümü denetle**.
 
 > Bu özellikten önce kurduysan bir kereliğine elle güncelle: qaHere'yi kapat (Ctrl+C), klasöründe `git pull` ve ardından `npm start` çalıştır. Sonraki güncellemeler uygulamanın içinden gelir.
 
@@ -332,6 +342,7 @@ qahere/
 │   ├── jira.js          Jira REST istemcisi (yalnızca okuma)
 │   ├── generate.js      Claude Code'u arka planda çalıştırır, çıktıyı temizler
 │   ├── bug.js           Hata kaydı taslağı ve Jira'da açma
+│   ├── ask.js           Rehbere sor (soru-yanıt, yalnızca okuma)
 │   ├── proxyman.js      Proxyman: istekler ve mock kuralları
 │   ├── runner.js        Maestro akışı yazdırma ve koşu
 │   ├── device.js        Simülatör/emülatör bulma, ekran görüntüsü

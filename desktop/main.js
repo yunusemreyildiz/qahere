@@ -161,6 +161,13 @@ function openOutside(url) {
 /** Pencere içi gezinme yalnızca qaHere sunucusunda kalır; dış bağlantılar (Jira, Slack…) varsayılan tarayıcıda açılır. */
 function guard(w) {
   w.webContents.on('will-navigate', (e, url) => {
+    // Güncelleme pencere/menü kodunu da değiştirdiyse arayüz buraya gider: uygulama kendini baştan açar.
+    if (isLocal(url) && new URL(url).pathname === '/__desktop/relaunch') {
+      e.preventDefault();
+      app.relaunch();
+      app.quit();
+      return;
+    }
     if (isLocal(url) || url.startsWith('data:')) return;
     e.preventDefault();
     openOutside(url);

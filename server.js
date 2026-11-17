@@ -15,6 +15,7 @@ import { generateGuide } from './lib/generate.js';
 import { saveGuide, listGuides, deleteGuide, guidePaths, dataDir, setResults, guideHtml, addBug, updateMeta } from './lib/store.js';
 import { findBrowser, renderPdf } from './lib/pdf.js';
 import { checkUpdate, applyUpdate, RESTART_CODE } from './lib/update.js';
+import { askGuide, clearChat } from './lib/ask.js';
 import { screenshot, devices } from './lib/device.js';
 import { readFlow, saveFlow, draftFlow, startRun, getRun, publicRun, cancelRun, activeRun } from './lib/runner.js';
 
@@ -233,6 +234,35 @@ app.get('/api/guides', wrap(async (req, res) => res.json({ guides: await listGui
 
 app.delete('/api/guides/:key/:id', wrap(async (req, res) => {
   await deleteGuide(req.params.key, req.params.id);
+  res.json({ ok: true });
+}));
+
+// Rehbere sor: yanıt satır satır JSON olarak akar (step / delta / reset / done / error).
+const asking = new Set();
+app.post('/api/guides/:key/:id/ask', wrap(async (req, res) => {
+  const question = String(req.body?.question || '').trim().slice(0, 2000);
+  if (!question) return res.status(400).json({ error: 'Bir soru yaz.' });
+  const k = `${req.params.key}/${req.params.id}`;
+  if (asking.has(k)) return res.status(409).json({ error: 'Bu rehbere sorulan önceki soru hâlâ yanıtlanıyor.' });
+  asking.add(k);
+  let run;
+  try {
+    run = await askGuide({ key: req.params.key, id: req.params.id, question, deep: Boolean(req.body?.deep), onEvent: (e) => res.write(`${JSON.stringify(e)}\n`) });
+  } catch (e) { asking.delete(k); throw e; }
+  res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-store');
+  res.flushHeaders();
+  // Pencere kapanır ya da kullanıcı durdurursa Claude da durur.
+  res.on('close', () => { if (!res.writableEnded) { run.child.kill('SIGTERM'); asking.delete(k); } });
+  try {
+    const { entry } = await run.done;
+    res.end(`${JSON.stringify({ type: 'done', entry })}\n`);
+  } catch (e) {
+    if (!res.writableEnded) res.end(`${JSON.stringify({ type: 'error', message: e.message })}\n`);
+  } finally { asking.delete(k); }
+}));
+app.delete('/api/guides/:key/:id/chat', wrap(async (req, res) => {
+  await clearChat(req.params.key, req.params.id);
   res.json({ ok: true });
 }));
 

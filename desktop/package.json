@@ -4,7 +4,7 @@
   "private": true,
   "description": "qaHere için isteğe bağlı macOS masaüstü kabuğu (Electron). Sunucuyu kendisi başlatır, arayüzü kendi penceresinde açar.",
   "type": "module",
-  "main": "main.js",
+  "main": "loader.js",
   "scripts": {
     "start": "electron .",
     "build": "node build.js"

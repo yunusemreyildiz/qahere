@@ -202,6 +202,16 @@ One guide is generated at a time; wait for the first to finish or **cancel** it.
 
 **Who are you?** On first run (and in Settings) you pick your role, the platforms you test and your team's Jira boards. "Takımım" filters the list by those boards; your role and platforms are also passed to Claude when the guide is written. If you picked a single platform, the checklist is written for that platform.
 
+### Asking the guide
+
+Anything you wonder about while reading, ask with **Rehbere sor** (Ask the guide) in the toolbar; the panel opens next to the guide so you keep reading.
+
+<p><img src="docs/screenshots/ask.png" alt="Ask the guide panel: a question and an answer grounded in the guide"></p>
+
+- Claude answers knowing what the guide says and which checks you've marked, and names the section it relied on. Questions like "which items are still open?" work too. The answer starts in about 15–20 seconds.
+- For something the guide doesn't cover, turn on **Kaynaklara da bak** (Also check sources): Claude searches Jira and your enabled sources (Slack, Notion…) read-only and links to what it found. It's slower, and a question uses roughly ten times as much as a plain one.
+- The conversation is saved with the guide; **Temizle** (Clear) deletes it. Each question counts against your Claude usage.
+
 ### Filing a bug
 
 Pick **Kaldı** (Failed) from an item's platform button and the bug window opens:
@@ -240,7 +250,7 @@ With Proxyman running (your app's traffic going through it, and SSL Proxying on 
 
 ### Updating
 
-When qaHere opens, it checks GitHub for a new version. If there is one, a **Yeni sürüm var** (New version) window lists what changed; press **Güncelle** (Update) and qaHere downloads it and restarts itself. Your settings, guides and ticks stay as they are. To check by hand: top right, **Durum → Yeni sürümü denetle** (Status → Check for a new version).
+qaHere checks GitHub for a new version when it opens and every half hour while it stays open. If there is one, a **Yeni sürüm var** (New version) window lists what changed; press **Güncelle** (Update) and qaHere downloads it and restarts itself. In the desktop app the window and menus update too; if needed, the app quits and reopens itself. Only when the underlying Electron is upgraded are you asked to run `npm run desktop` once. Your settings, guides and ticks stay as they are. To check by hand: top right, **Durum → Yeni sürümü denetle** (Status → Check for a new version).
 
 > If you installed qaHere before this feature, update by hand once: stop qaHere (Ctrl+C), run `git pull` in its folder, then `npm start`. Later updates come from inside the app.
 
@@ -334,6 +344,7 @@ qahere/
 │   ├── jira.js          Jira REST client (read-only)
 │   ├── generate.js      Runs Claude Code in the background, cleans the output
 │   ├── bug.js           Bug drafts and filing in Jira
+│   ├── ask.js           Ask the guide (Q&A, read-only)
 │   ├── proxyman.js      Proxyman: requests and mock rules
 │   ├── runner.js        Writing and running Maestro flows
 │   ├── device.js        Finding simulators/emulators, screenshots
