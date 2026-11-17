@@ -141,7 +141,7 @@ npm start
 
 ### 5. İlk açılış adımlarını tamamla
 
-İlk açılışta qaHere seni dört kısa adımda kurulumdan geçirir.
+İlk açılışta qaHere seni beş kısa adımda kurulumdan geçirir.
 
 <table>
   <tr>
@@ -154,15 +154,21 @@ npm start
   </tr>
   <tr>
     <td><img src="docs/screenshots/setup-3-jira.png" alt="Jira bağlantısı"></td>
-    <td><img src="docs/screenshots/setup-4-sources.png" alt="Kaynak seçimi"></td>
+    <td><img src="docs/screenshots/setup-4-profile.png" alt="Sen kimsin: rol, platformlar, takım"></td>
   </tr>
   <tr>
     <td><b>Jira'yı bağla.</b> Jira adresin (<code>sirketin.atlassian.net</code>), e-postan ve bir API token. Token'ı <a href="https://id.atlassian.com/manage-profile/security/api-tokens">Atlassian hesap sayfasında</a> <i>Create API token</i> ile oluştur ve yapıştır. <i>Bağlantıyı sına</i> görebildiğin projeleri listeler; listede görmek istediklerini seç.</td>
+    <td><b>Sen kimsin?</b> Rolün, test ettiğin platformlar ve takımının Jira panoları. Liste <i>Takımım</i> seçiliyken bu panolara göre süzülür; Claude da rehberi sana göre yazar. Hepsi isteğe bağlı, sonradan Ayarlar'dan değişir.</td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/setup-5-sources.png" alt="Kaynak seçimi"></td>
+    <td><img src="docs/screenshots/setup-6-look.png" alt="Son dokunuş"></td>
+  </tr>
+  <tr>
     <td><b>Kaynakları seç.</b> Rehber yazılırken Jira'nın yanında nerelere bakılsın? 3. adımda bağladıklarını aç. <i>Bağlantıları denetle</i> hepsinin Claude Code'da gerçekten bağlı olduğunu doğrular.</td>
+    <td><b>Son dokunuş.</b> İstersen bir çalışma alanı adı, vurgu rengi ve model seç, sonra <i>Kullanmaya başla</i>'ya bas.</td>
   </tr>
 </table>
-
-Son adımda istersen bir çalışma alanı adı ve vurgu rengi seçip **Kullanmaya başla**'ya bas.
 
 **Jira token'ı şart değil.** *Token olmadan devam et* dersen epic listesi ve başlıkla arama çalışmaz, ama bir iş anahtarını (ör. `PROJ-123`) elle yazıp rehber üretebilirsin. Bu durumda Jira içeriğini Claude, Atlassian bağlantısıyla okur; biraz daha yavaştır.
 

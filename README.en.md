@@ -143,7 +143,7 @@ npm start
 
 ### 5. Finish the first-run steps
 
-On first launch, qaHere walks you through four short steps.
+On first launch, qaHere walks you through five short steps.
 
 <table>
   <tr>
@@ -156,15 +156,21 @@ On first launch, qaHere walks you through four short steps.
   </tr>
   <tr>
     <td><img src="docs/screenshots/setup-3-jira.png" alt="Jira connection"></td>
-    <td><img src="docs/screenshots/setup-4-sources.png" alt="Source selection"></td>
+    <td><img src="docs/screenshots/setup-4-profile.png" alt="Who are you: role, platforms, team"></td>
   </tr>
   <tr>
     <td><b>Connect Jira.</b> Your Jira address (<code>yourcompany.atlassian.net</code>), your email and an API token. Create the token on your <a href="https://id.atlassian.com/manage-profile/security/api-tokens">Atlassian account page</a> with <i>Create API token</i> and paste it. <i>Bağlantıyı sına</i> (Test connection) lists the projects you can see; pick the ones you want in the list.</td>
+    <td><b>Who are you?</b> Your role, the platforms you test and your team's Jira boards. With <i>Takımım</i> (My team) selected, the list is filtered to those boards, and Claude writes the guide for you. All optional; change them later in Settings.</td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/setup-5-sources.png" alt="Source selection"></td>
+    <td><img src="docs/screenshots/setup-6-look.png" alt="Finishing touch"></td>
+  </tr>
+  <tr>
     <td><b>Choose sources.</b> Where should qaHere look besides Jira? Turn on the ones you connected in step 3. <i>Bağlantıları denetle</i> (Check connections) confirms they're really connected in Claude Code.</td>
+    <td><b>Finishing touch.</b> Optionally pick a workspace name, an accent color and a model, then press <i>Kullanmaya başla</i> (Start using).</td>
   </tr>
 </table>
-
-In the last step you can optionally set a workspace name and an accent color, then press **Kullanmaya başla** (Start using).
 
 **A Jira token is optional.** If you choose *Token olmadan devam et* (Continue without a token), the epic list and title search won't work, but you can still type an issue key (e.g. `PROJ-123`) and generate a guide. Claude then reads Jira through its Atlassian connector, which is a little slower.
 
