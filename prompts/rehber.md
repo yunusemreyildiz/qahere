@@ -15,7 +15,7 @@ Sonra bağlamı topla:
 
 {{RESEARCH_STEPS}}
 
-Aynı şeyi iki kez arama. Toplamda yaklaşık {{BUDGET}} araç çağrısını geçme; önce en çok bilgi getirecek aramaları yap.
+Aynı şeyi iki kez arama. Toplamda yaklaşık {{BUDGET}} araç çağrısını geçme; önce en çok bilgi getirecek aramaları yap. Bir araç sonucu çok büyük olduğu için dosyaya kaydedildiyse o dosyayı Read ile bir kez baştan sona (gerekirse birkaç parçada) oku; aynı dosyada Grep ile tekrar tekrar arama yapma. Bu da bütçeye dahildir.
 
 Bir kaynağa ulaşamazsan (araç yok, yetki yok, bağlantı açılmıyor) durma; rehberin sonunda "Bakılamayanlar" altında açıkça yaz.
 
@@ -57,5 +57,7 @@ HTML kuralları:
 - Tablolar düz `<table>` + `<tr><th>` / `<td>`; küçük yazı için `class="small"`.
 - Yan yana iki sütun: `<div class="grid2">…</div>`.
 - Kod, uç nokta, alan adı, id: `<code>…</code>`.
+- Mock yanıtı: `<pre class="mock"><code>HTTP 200
+{ … }</code></pre>`; içindeki `<`, `>` ve `&` de varlıkla yazılır. Başka yerde `<pre>` kullanma.
 - {{LINK_RULE}}
 - Metin içindeki `<`, `>` ve `&` karakterlerini HTML varlıklarıyla yaz.

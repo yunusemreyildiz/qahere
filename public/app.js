@@ -566,6 +566,27 @@ function issueItem(it, onClick, right) {
     h('div', { class: 's' }, it.summary || it.title || '—'));
 }
 
+// Rehberi o an üretilen iş listede dönen bir simgeyle işaretlenir. Üretim başka yerden (başka pencere,
+// terminal) başlatılmış olabileceği için sunucuya birkaç saniyede bir sorulur; liste her yenilendiğinde yeniden işlenir.
+let runningKey = null;
+function paintBusy() {
+  document.querySelectorAll('#list .item').forEach((el) => {
+    const on = el.dataset.key === runningKey;
+    el.classList.toggle('busy', on);
+    if (on) el.setAttribute('aria-busy', 'true'); else el.removeAttribute('aria-busy');
+    el.title = on ? 'Rehberi hazırlanıyor' : '';
+  });
+}
+async function pollActive() {
+  const a = await api('/api/jobs/active').catch(() => null);
+  if (!a) return;
+  const k = a.jobId ? a.key : null;
+  if (k !== runningKey) { runningKey = k; paintBusy(); }
+}
+new MutationObserver(paintBusy).observe($('#list'), { childList: true });
+setInterval(pollActive, 4000);
+pollActive();
+
 const settingsNote = (text, label = 'Ayarları aç') => h('div', { class: 'note' }, text, h('div', {}, h('button', { class: 'btn plain sm', type: 'button', onclick: openSettings }, label)));
 
 function scopeOf() {
@@ -747,6 +768,9 @@ function renderGuides(key, guides, selectedId) {
     const msg = e.data || {};
     if (msg.qa === 'run' && Number.isInteger(msg.c) && ['ios', 'android'].includes(msg.platform)) {
       return openRunSheet({ g, frame, c: msg.c, platform: msg.platform, item: String(msg.text || '').slice(0, 1500), section: String(msg.section || '').slice(0, 200) });
+    }
+    if (msg.qa === 'mockblock' && typeof msg.text === 'string') {
+      return openMockSheet({ g, c: null, item: '', onChange: paintMocks, preset: parseMockBlock(String(msg.title || ''), msg.text) });
     }
     if (msg.qa === 'mock' && Number.isInteger(msg.c)) {
       return openMockSheet({ g, c: msg.c, item: String(msg.text || '').slice(0, 1500), onChange: paintMocks });
@@ -983,6 +1007,7 @@ async function startJob(key) {
   btn.disabled = true;
   try {
     const { jobId } = await send('/api/guides', 'POST', { key, notes: $('#notes')?.value || '' });
+    runningKey = key; paintBusy();
     attachJob(jobId, key);
   } catch (e) {
     btn.disabled = false;
@@ -1019,7 +1044,7 @@ function attachJob(jobId, key) {
     }
   }, 1000);
   const es = new EventSource(`/api/jobs/${jobId}/events`);
-  const finish = () => { clearInterval(tick); es.close(); if ($('#genBtn')) $('#genBtn').disabled = false; };
+  const finish = () => { clearInterval(tick); es.close(); if ($('#genBtn')) $('#genBtn').disabled = false; pollActive(); };
   state.es = es;
   es.onmessage = async (m) => {
     const ev = JSON.parse(m.data);
@@ -1242,12 +1267,28 @@ function mockList(g, onChange) {
   return box;
 }
 
-function openMockSheet({ g, c, item, onChange }) {
-  const f = { url: '', method: 'GET', status: 200, body: '', flow: null };
+/** Rehberdeki mock bloğu: başlıktan yöntem + yol, ilk satırdan durum kodu ("HTTP 410"), kalanı gövde. */
+function parseMockBlock(title, text) {
+  const m = title.match(/\b(GET|POST|PUT|PATCH|DELETE)\s+(\S+)/i);
+  const lines = text.replace(/\r/g, '').split('\n');
+  const st = lines[0].match(/^\s*HTTP(?:\/[\d.]+)?\s+(\d{3})/i);
+  return {
+    method: m ? m[1].toUpperCase() : 'ANY',
+    path: m ? m[2].replace(/[—–-]+$/, '') : '',
+    status: st ? Number(st[1]) : 200,
+    body: (st ? lines.slice(1) : lines).join('\n').trim(),
+    title,
+  };
+}
+
+function openMockSheet({ g, c, item, onChange, preset }) {
+  const f = { url: '', method: preset?.method || 'GET', status: preset?.status || 200, body: preset?.body || '', flow: null };
   const urlIn = h('input', { class: 'input', placeholder: 'https://api.ornek.com/v1/kuponlar', spellcheck: 'false', oninput: () => { f.url = urlIn.value.trim(); f.flow = null; paintSrc(); } });
   const methodSel = h('select', { class: 'input', onchange: () => { f.method = methodSel.value; } }, ...['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'ANY'].map((m) => h('option', { value: m }, m)));
-  const statusIn = h('input', { class: 'input', type: 'number', min: '100', max: '599', value: '200', oninput: () => { f.status = Number(statusIn.value) || 200; } });
+  const statusIn = h('input', { class: 'input', type: 'number', min: '100', max: '599', value: String(f.status), oninput: () => { f.status = Number(statusIn.value) || 200; } });
   const body = h('textarea', { class: 'input mono', rows: '10', spellcheck: 'false', placeholder: '{ "items": [] }', oninput: () => { f.body = body.value; } });
+  body.value = f.body;
+  methodSel.value = f.method;
   let sample = '';
   const srcBox = h('div', {});
   const useCaptured = h('label', { class: 'only-row' }, h('input', { type: 'checkbox' }), ' Yakalanan yanıtı olduğu gibi kullan (gövde yazmadan)');
@@ -1255,7 +1296,7 @@ function openMockSheet({ g, c, item, onChange }) {
     useCaptured.hidden = !f.flow;
     srcBox.replaceChildren(...(f.flow ? [h('div', { class: 'msg ok' }, `Seçilen istek: ${f.flow.method} ${f.flow.url.replace(/^https?:\/\//, '')}${f.flow.status ? ` → ${f.flow.status}` : ''}`)] : []));
   };
-  const picker = flowPicker({ q: guessPath(item), pickLabel: 'Seç', onPick: async (fl) => {
+  const picker = flowPicker({ q: preset?.path || guessPath(item), pickLabel: 'Seç', onPick: async (fl) => {
     f.flow = fl; f.url = fl.url.split('?')[0]; urlIn.value = f.url; f.method = fl.method; methodSel.value = fl.method; paintSrc();
     try { sample = (await api(`/api/proxyman/flows/${encodeURIComponent(fl.id)}`)).text; } catch { sample = ''; }
   } });
@@ -1293,7 +1334,8 @@ function openMockSheet({ g, c, item, onChange }) {
 
   openSheet('Mock ile test', h('div', { class: 'bugform' },
     item ? h('p', { class: 'bug-item mock' }, h('span', {}, 'Test maddesi'), item) : null,
-    h('div', { class: 'f' }, 'Hangi istek? Uygulamada ekranı açtıysan yakalanan istekten seç.', picker),
+    preset ? h('p', { class: 'bug-item mock' }, h('span', {}, 'Rehberdeki mock'), preset.title || `${preset.method} ${preset.path}`) : null,
+    h('div', { class: 'f' }, preset?.path ? `Hangi istek? Rehber yalnızca yolu veriyor (${preset.path}); uygulamada ekranı açıp yakalanan istekten seç ya da tam adresi yaz.` : 'Hangi istek? Uygulamada ekranı açtıysan yakalanan istekten seç.', picker),
     srcBox,
     h('div', { class: 'trio wide' }, h('label', { class: 'f' }, 'Adres', urlIn), h('label', { class: 'f' }, 'Yöntem', methodSel), h('label', { class: 'f' }, 'Durum kodu', statusIn)),
     useCaptured,

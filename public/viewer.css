@@ -65,6 +65,13 @@ html.live .kpis{border:0;gap:10px;grid-template-columns:repeat(auto-fit,minmax(1
 html.live .kpi{background:var(--rail);border:0;border-radius:var(--rad);padding:12px 14px}
 html.live .kpi b{font-family:var(--sans);font-size:24px;line-height:1.1;font-weight:700;color:var(--ink)}
 
+/* Mock yanıtı */
+html.live pre.mock{font-size:13px;background:var(--rail);border:0;border-left:3px solid var(--brand);border-radius:8px;padding:12px 14px;max-width:72ch}
+html.live h4{font-size:14px;margin:18px 0 4px}
+html.live .mockgo{display:inline-flex;align-items:center;margin:-4px 0 14px;border:1.5px solid var(--ctl);background:var(--raise);color:var(--ink);border-radius:7px;padding:5px 11px;font:600 12.5px/1 var(--sans);cursor:pointer}
+html.live .mockgo:hover{border-color:var(--brand);color:var(--brand-ink)}
+html.live .mockgo:focus-visible{outline:2px solid var(--brand);outline-offset:1px}
+
 /* Tablolar */
 html.live table{font-size:14px}
 html.live th{color:var(--mute);font-weight:600;border-bottom:1px solid var(--sep-2)}

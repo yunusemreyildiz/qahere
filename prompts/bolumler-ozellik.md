@@ -1,13 +1,22 @@
+Bölümler testçinin çalışma sırasını izler: önce ortam ve test hazırlığı, ardından netleştirilmesi gereken çelişkiler, en sonda testlerin kendisi. Hazırlık tamamen bitmeden test bölümü gelmez.
+
 1. **Özet kutusu** (`box brand`): özellik 3–5 cümlede ne, ve QA için ana kural ne.
 2. **Durum** : `kpis` ile 3–4 sayı (iş sayısı, durum dağılımı, hedef sürüm gibi) ve bir `box ok` içinde "nerede, ne durumda" (hangi platform hangi aşamada, test edilebilir build var mı, canlıya çıkan parça var mı).
-3. **Akış ve durumlar**: numaralı adımlar; sistemin durumlarına göre "ne gelirse ne olur" tablosu.
-4. **İş haritası** *(detay)*: tablo; her alt iş için anahtar, kim, durum etiketi, kapsam.
-5. **Servis / kontrat** *(detay)* (varsa): uç noktalar, istek-yanıt kuralları, hata kodları ve her birinde beklenen davranış, sonradan yapılan kontrat değişiklikleri.
-6. **Test kontrol listesi**: ekran ya da iş bazında alt başlıklar, her biri `ul class="chk"`.
-7. **Platform farkları** (varsa): iOS / Android / web tablosu.
-8. **Çelişkiler ve belirsizlikler**: `box bad` içinde çözülmemiş çelişkiler (her birinde: iki tarafın ne dediği + nasıl test edileceği), `box warn` içinde işlerde açık kalan sorular.
-9. **Kararlar (kronolojik)** *(detay)*: tablo; tarih, karar, kim ve nerede.
-10. **Otomasyon ve analytics** *(detay)* (varsa): erişilebilirlik / test id'leri tablosu, event listesi ve dikkat edilecekler.
-11. **Test hazırlığı**: gerekli kullanıcı/veri durumları, ortam, araçlar.
-12. **Kime ne sorulmalı** *(detay)*: tablo; soru ve muhtemel muhatap.
-13. **Kaynaklar** *(detay)*: okunan Jira işleri, yazışmalar (kanal/thread), doküman sayfaları, dosyalar. Ardından **Bakılamayanlar**.
+3. **Ortam hazırlığı**: teste başlamadan kurulacak her şey, alt başlıklarla (kaynakta bilgisi olmayan alt başlığı atla):
+   - "Paketler": hangi build/sürüm (iOS, Android, web), nereden alınır (TestFlight, Firebase, mağaza, ortam adresi), hangi ortama (test, staging) bağlı.
+   - "Cihazlar": gereken cihaz/işletim sistemi sürümleri, dil/bölge, izinler (bildirim, konum), varsa tablet ya da eski sürüm ihtiyacı.
+   - "Hesaplar ve veriler": test kullanıcıları ve durumları (yeni, kayıtlı, belirli bir veriye sahip), gereken kayıtlar (sipariş, kupon, sepet), açılacak feature flag ya da konfigürasyon. Parola ve token yazma; nereden alınacağını söyle.
+   - "Mock verileri": kontrol listesindeki bir durum gerçek ortamda kolay oluşturulamıyorsa (hata kodları, boş ya da çok uzun liste, sınır değerler, zaman aşımı, kampanyanın bitmiş olması gibi) o durum için hazır mock yanıtı ver. Her mock için `<h4>` ile uç nokta ve senaryo (ör. `GET /v1/kuponlar` — boş liste), bir cümleyle hangi kontrol maddesi için olduğu, ardından `<pre class="mock"><code>` içinde HTTP durum kodu satırı ve yanıt gövdesi (JSON). Gövdeyi kontrat ya da yakalanmış gerçek trafikle aynı alan adları ve yapıda kur; tahmin ettiğin alanları gövdeden sonra bir cümleyle belirt. Gerçek kişi verisi, token ya da kimlik bilgisi koyma. En çok 5 mock; ihtiyaç yoksa bu alt başlığı atla. Uygulama her mock bloğunun altına "Proxyman'e kur" düğmesi ekler; bunun için ayrıca yönerge yazma.
+   Hazırlanacak maddeler `ul class="chk"` olabilir (ör. "Test hesabında kayıtlı kart var").
+4. **Test hazırlığı**: bu özelliğe özgü, test sırasında bilinmesi ve yapılması gerekenler: ön koşul akışlar (önce sepete ürün ekle gibi), hangi sırayla test edileceği, test sırasında izlenecek yerler (log, Proxyman, analytics), dikkat edilecek tuzaklar.
+5. **Çelişkiler ve belirsizlikler**: `box bad` içinde çözülmemiş çelişkiler (her birinde: iki tarafın ne dediği + nasıl test edileceği), `box warn` içinde işlerde açık kalan sorular. Testçi teste başlamadan bunları netleştirebilmeli.
+6. **Akış ve durumlar**: numaralı adımlar; sistemin durumlarına göre "ne gelirse ne olur" tablosu.
+7. **Test kontrol listesi**: ekran ya da iş bazında alt başlıklar, her biri `ul class="chk"`. Mock gerektiren maddede hangi mocku kullanacağını kısaca an. Event planı varsa son alt başlık "Analytics": her event için bir madde (doğru anda bir kez tetikleniyor, parametreleri doğru).
+8. **Analytics eventleri** (kaynaklarda event planı varsa): tablo; sütunlar: event adı (`<code>` içinde, kaynakta yazıldığı gibi harfi harfine; büyük-küçük harf ve alt çizgi dahil), ne zaman tetiklenir (ekran + kullanıcı eylemi), parametreler ve beklenen değerleri, platform, kaynak (Notion sayfası ya da Jira işi). Kaynaklar arasında event adı, parametre ya da tetiklenme anı farklıysa ikisini de yaz ve farkı Çelişkiler'e de ekle. Kaynağı olmayan event uydurma. Kaynakta nasıl doğrulanacağı geçiyorsa (DebugView, analitik aracının canlı görünümü, Proxyman'de analitik isteği) tablonun altına yaz.
+9. **Platform farkları** (varsa): iOS / Android / web tablosu.
+10. **İş haritası** *(detay)*: tablo; her alt iş için anahtar, kim, durum etiketi, kapsam.
+11. **Servis / kontrat** *(detay)* (varsa): uç noktalar, istek-yanıt kuralları, hata kodları ve her birinde beklenen davranış, sonradan yapılan kontrat değişiklikleri.
+12. **Kararlar (kronolojik)** *(detay)*: tablo; tarih, karar, kim ve nerede.
+13. **Otomasyon** *(detay)* (varsa): erişilebilirlik / test id'leri tablosu ve dikkat edilecekler.
+14. **Kime ne sorulmalı** *(detay)*: tablo; soru ve muhtemel muhatap.
+15. **Kaynaklar** *(detay)*: okunan Jira işleri, yazışmalar (kanal/thread), doküman sayfaları, dosyalar. Ardından **Bakılamayanlar**.

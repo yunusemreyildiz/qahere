@@ -13,17 +13,19 @@
     { k: 'akis', re: /akış/i, tier: 'test' },
     { k: 'celiski', re: /çelişki|belirsiz/i, tier: 'test' },
     { k: 'kontrol', re: /kontrol/i, tier: 'test' },
+    { k: 'ortam', re: /ortam hazırl|ortam ve|cihaz|paket/i, tier: 'test' },
     { k: 'hazirlik', re: /hazırl/i, tier: 'test' },
     { k: 'platform', re: /platform/i, tier: 'test' },
     { k: 'harita', re: /iş haritası|alt işler/, tier: 'detay' },
     { k: 'servis', re: /servis|kontrat|uç nokta|endpoint/i, tier: 'detay' },
+    { k: 'event', re: /analytics event|event plan|eventler/i, tier: 'test' },
     { k: 'otomasyon', re: /otomasyon|analyt[iı]cs|event/i, tier: 'detay' },
     { k: 'karar', re: /karar/i, tier: 'detay' },
     { k: 'kime', re: /kime|sorulmal/i, tier: 'detay' },
     { k: 'kaynak', re: /kaynak/i, tier: 'detay' },
     { k: 'durum', re: /durum/i, tier: 'test' },
   ];
-  const ORDER = ['ozet', 'durum', 'hazirlik', 'uretme', 'akis', 'celiski', 'kontrol', 'platform', '?', 'kime', 'servis', 'otomasyon', 'harita', 'koken', 'karar', 'kaynak'];
+  const ORDER = ['ozet', 'durum', 'ortam', 'hazirlik', 'uretme', 'celiski', 'akis', 'kontrol', 'event', 'platform', '?', 'kime', 'servis', 'otomasyon', 'harita', 'koken', 'karar', 'kaynak'];
   const clean = (t) => t.replace(/\s+/g, ' ').trim().replace(/^\d+[.)]\s*/, '');
 
   const cover = body.querySelector(':scope > .cover');
@@ -418,6 +420,16 @@
   onlyBox.addEventListener('change', () => root.classList.toggle('only-open', onlyBox.checked));
   items.forEach(paintItem);
   paint();
+
+  // Mock yanıtı blokları: tek tıkla qaHere'nin "Mock ile test" penceresine dolu gider (Proxyman kuralını qaHere kurar).
+  d.querySelectorAll('pre.mock').forEach((pre) => {
+    let h = pre.previousElementSibling;
+    while (h && !/^H[2-4]$/.test(h.tagName)) h = h.previousElementSibling;
+    const btn = make('button', 'mockgo', "Proxyman'e kur");
+    btn.type = 'button';
+    btn.addEventListener('click', () => parent.postMessage({ qa: 'mockblock', title: (h?.textContent || '').trim().slice(0, 300), text: pre.textContent.slice(0, 20000) }, '*'));
+    pre.after(btn);
+  });
 
   // 6) Hangi bölümdeyim
   const spy = new IntersectionObserver((entries) => {

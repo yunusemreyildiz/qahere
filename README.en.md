@@ -25,8 +25,8 @@
 
 Pick an epic or a task. qaHere reads the Jira issue and its sub-tasks, related Slack threads, and Notion and Confluence pages. Then it writes a guide in the order a tester needs it:
 
-- **What to know first:** a summary and the main rule for QA, which platform is at which stage, test preparation, flow steps, and **contradictions** between sources.
-- **Test checklist:** screen by screen. Mark each item **Passed**, **Failed** or **Not applicable** separately for iOS and Android; once every platform is done, the item is struck through. Marks are saved instantly; close the tab, come back, and they are still there. They also show up in the PDF.
+- **Preparation first:** a summary and the main rule for QA, which platform is at which stage; then **environment setup** (which build, which devices, test accounts and data, ready-made **mock responses** when needed), test preparation and **contradictions** between sources. The tests come after preparation is done.
+- **Test checklist:** screen by screen. Mark each item **Passed**, **Failed** or **Not applicable** separately for iOS and Android; once every platform is done, the item is struck through. If Notion or Jira has an event plan, **analytics events** appear letter for letter (with parameters and when they fire) in their own table and in the checklist. Marks are saved instantly; close the tab, come back, and they are still there. They also show up in the PDF.
 - **Details:** service contract and error codes, automation IDs, a timeline of decisions, the issue map, who to ask what, and the sources that were read. Nothing is left out, but these sit in collapsed sections; you can run the tests without them.
 
 <table>
@@ -245,6 +245,8 @@ With Proxyman running (your app's traffic going through it, and SSL Proxying on 
   - reuse the captured response as is,
   - write the body yourself,
   - describe it ("coupon list comes back empty") and press **Claude üretsin** (Let Claude write it): Claude writes JSON in a short call with no tools, keeping the sample's schema; you can edit it before setting it up.
+
+  If the guide's **Ortam hazırlığı** (Environment setup) section has a ready mock response, the **Proxyman'e kur** (Set up in Proxyman) button under it opens this window with the method, status code and body filled in; you only pick the request.
 
   **Proxyman'de kur** (Set up in Proxyman) creates a Map Local rule. While a mock is on, the toolbar shows **Mock açık (n)** (Mock on); turn it off or delete it from there. qaHere creates the rule, not Claude.
 

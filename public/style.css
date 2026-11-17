@@ -86,6 +86,9 @@ select{appearance:none;-webkit-appearance:none;border:1px solid var(--rule);back
 .item.active .k > span:first-child{color:var(--accent-text)}
 .item .k .st,.item .k > span:last-child{font-family:var(--sans)}
 .item .s{font-weight:500;font-size:14px;line-height:1.35;overflow-wrap:anywhere}
+/* Rehberi şu an üretilen iş: anahtarın önünde dönen halka */
+.item.busy .k > span:first-child{display:inline-flex;align-items:center;gap:7px;color:var(--accent-text)}
+.item.busy .k > span:first-child::before{content:"";width:10px;height:10px;border:2px solid var(--rule);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;flex:none}
 .st{font-size:12px;color:var(--graphite);white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
 .st::before{content:"";width:7px;height:7px;border-radius:1px;background:var(--faint);flex:none}
 .st.done::before{background:var(--ok)} .st.indeterminate::before{background:var(--warn)}

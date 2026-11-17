@@ -23,8 +23,8 @@
 
 Bir epic ya da task seçersin. qaHere Jira işini ve alt işlerini, ilgili Slack yazışmalarını, Notion ve Confluence sayfalarını okur. Sonra QA'nın ihtiyaç duyduğu sırayla bir rehber yazar:
 
-- **Önce bilmen gerekenler:** özet ve QA için ana kural, hangi platform hangi aşamada, test hazırlığı, akış adımları, kaynaklar arasındaki **çelişkiler**.
-- **Test kontrol listesi:** ekran ekran maddeler. Her maddeyi iOS ve Android için ayrı ayrı **Geçti**, **Kaldı** ya da **Uygulanmaz** diye işaretlersin; tüm platformlarda bitince maddenin üstü çizilir. İşaretler anında kaydedilir; sekmeyi kapatıp geri geldiğinde yerinde durur, PDF'e de yansır.
+- **Önce hazırlık:** özet ve QA için ana kural, hangi platform hangi aşamada; ardından **ortam hazırlığı** (hangi paket, hangi cihazlar, test hesapları ve verileri, gerekirse hazır **mock yanıtları**), test hazırlığı ve kaynaklar arasındaki **çelişkiler**. Testler, hazırlık bittikten sonra gelir.
+- **Test kontrol listesi:** ekran ekran maddeler. Her maddeyi iOS ve Android için ayrı ayrı **Geçti**, **Kaldı** ya da **Uygulanmaz** diye işaretlersin; tüm platformlarda bitince maddenin üstü çizilir. Notion'da ya da Jira'da event planı varsa **analytics event'leri** adı adına (parametreleri ve tetiklenme anıyla) ayrı bir tabloda ve kontrol listesinde yer alır. İşaretler anında kaydedilir; sekmeyi kapatıp geri geldiğinde yerinde durur, PDF'e de yansır.
 - **Ayrıntılar:** servis kontratı ve hata kodları, otomasyon id'leri, kararların kronolojisi, iş haritası, kime ne sorulacağı, okunan kaynaklar. Hiçbiri atlanmaz, ama kapalı bölümlerde durur; testi bunları bilmeden de yürütebilirsin.
 
 <table>
@@ -243,6 +243,8 @@ Proxyman açıkken (uygulamanın trafiği Proxyman'den geçiyor ve HTTPS için S
   - yakalanan yanıtı olduğu gibi kullan,
   - gövdeyi kendin yaz,
   - tarif et ("kupon listesi boş dönsün") ve **Claude üretsin**: araçsız kısa bir çağrıyla, örnek yanıtın şemasını koruyarak JSON yazar; kurmadan önce düzeltebilirsin.
+
+  Rehberin **Ortam hazırlığı** bölümünde hazır mock yanıtı varsa altındaki **Proxyman'e kur** düğmesi bu pencereyi yöntem, durum kodu ve gövde dolu açar; yalnızca isteği seçersin.
 
   **Proxyman'de kur** kuralı Map Local olarak açar. Açık mock varsa araç çubuğunda **Mock açık (n)** görünür; oradan kapatır ya da silersin. Kuralı Claude değil qaHere kurar.
 

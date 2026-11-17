@@ -32,6 +32,11 @@ a{color:var(--brand);text-decoration:none}
 a:hover{text-decoration:underline;text-underline-offset:2px}
 code{font-family:var(--mono);font-size:.86em;background:var(--soft);border:1px solid var(--line);padding:0 4px;border-radius:3px;overflow-wrap:anywhere}
 
+/* Mock yanıtı: kopyalanacak blok */
+pre.mock{font-family:var(--mono);font-size:.82em;line-height:1.45;background:var(--soft);border:1px solid var(--line);border-left:3px solid var(--brand);border-radius:4px;padding:9px 12px;margin:6px 0 12px;white-space:pre-wrap;overflow-wrap:anywhere;break-inside:avoid}
+pre.mock code{background:none;border:0;padding:0;font-size:1em}
+h4{font-size:.95em;font-weight:600;margin:14px 0 4px}
+
 /* Tablolar: yalnız yatay çizgi */
 table{width:100%;border-collapse:collapse;margin:6px 0 12px;font-size:.88em}
 th,td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
