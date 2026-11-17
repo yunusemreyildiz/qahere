@@ -6,7 +6,7 @@
 
 <p align="center">
   Jira işinden, test etmeden önce okunacak <b>QA rehberini</b> hazırlar.<br>
-  Bilgisayarında çalışır, rehberi kendi Claude hesabınla yazar.
+  Mac'inde bir uygulama olarak çalışır, rehberi kendi Claude hesabınla yazar.
 </p>
 
 <p align="center">
@@ -14,7 +14,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/guide.png" alt="qaHere rehber ekranı: solda bölümler ve kontrol ilerlemesi, sağda rehber">
+  <img src="docs/screenshots/desktop.png" alt="qaHere masaüstü uygulaması: solda işler, ortada bölümler ve kontrol ilerlemesi, sağda rehber">
 </p>
 
 ---
@@ -50,6 +50,7 @@ Yaklaşık 5 dakika sürer. Sırayla git; her adımın sonunda neyi görmen gere
 
 | Ne | Neden | Nasıl kontrol edilir |
 | --- | --- | --- |
+| macOS | Masaüstü uygulaması (Windows / Linux'ta tarayıcıda çalışır) | – |
 | Node.js 18 ya da üstü | qaHere'yi çalıştırır | `node --version` |
 | Claude Code | Rehberi yazar | `claude --version` |
 | Ücretli bir Claude hesabı | Claude Code'a giriş ve kaynak bağlantıları | – |
@@ -110,7 +111,7 @@ git clone https://github.com/yunusemreyildiz/qahere.git
 cd qahere && npm install
 ```
 
-**macOS:** qaHere'yi masaüstü uygulaması olarak kur:
+Sonra uygulamayı kur:
 
 ```bash
 npm run desktop
@@ -120,14 +121,6 @@ npm run desktop
 
 İlk açılışta macOS *"qaHere, Belgeler klasöründeki dosyalara erişmek istiyor"* diye sorabilir. **İzin Ver**'e bas; qaHere, indirdiğin klasördeki kodu buradan çalıştırır.
 
-**Windows, Linux ya da tarayıcıda kullanmak istersen:**
-
-```bash
-npm start
-```
-
-✅ Terminalde `qaHere hazır → http://localhost:4310` yazısını gör, sonra tarayıcıda <http://localhost:4310> adresini aç. Terminal açık kaldığı sürece çalışır.
-
 <details>
 <summary>Masaüstü uygulaması hakkında</summary>
 
@@ -136,6 +129,19 @@ npm start
 - PDF'ler doğrudan İndirilenler'e kaydedilir; Jira ve Slack bağlantıları varsayılan tarayıcında açılır.
 - **Sunucu** menüsünde *Tarayıcıda aç*, *Sunucuyu yeniden başlat* ve *Günlüğü göster* var. Terminalde `npm start` zaten açıksa uygulama ona bağlanır.
 - Electron yaklaşık 300 MB yer kaplar ve yalnızca `desktop/` klasörüne kurulur. Kaldırmak için `~/Applications/qaHere.app`'i çöpe at.
+
+</details>
+
+<details>
+<summary>Windows ya da Linux'ta (tarayıcıda)</summary>
+
+Masaüstü uygulaması şimdilik yalnızca macOS için. Diğer sistemlerde qaHere'yi tarayıcıda kullanırsın:
+
+```bash
+npm start
+```
+
+✅ Terminalde `qaHere hazır → http://localhost:4310` yazısını gör, sonra tarayıcıda <http://localhost:4310> adresini aç. Terminal açık kaldığı sürece çalışır.
 
 </details>
 

@@ -6,7 +6,7 @@
 
 <p align="center">
   Turns a Jira issue into the <b>QA guide</b> a tester reads before testing.<br>
-  Runs on your computer and writes the guide with your own Claude account.
+  Runs as an app on your Mac and writes the guide with your own Claude account.
 </p>
 
 <p align="center">
@@ -14,7 +14,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/guide.png" alt="qaHere guide view: sections and checklist progress on the left, the guide on the right">
+  <img src="docs/screenshots/desktop.png" alt="qaHere desktop app: issues on the left, sections and checklist progress in the middle, the guide on the right">
 </p>
 
 > **Language note:** the app's interface and the guides it writes are currently **Turkish only**. The screenshots below show the Turkish UI; each one is described in English.
@@ -52,6 +52,7 @@ Takes about 5 minutes. Go step by step; each step tells you what you should see 
 
 | What | Why | How to check |
 | --- | --- | --- |
+| macOS | The desktop app (on Windows / Linux it runs in the browser) | – |
 | Node.js 18 or later | Runs qaHere | `node --version` |
 | Claude Code | Writes the guide | `claude --version` |
 | A paid Claude account | Claude Code sign-in and source connectors | – |
@@ -112,7 +113,7 @@ git clone https://github.com/yunusemreyildiz/qahere.git
 cd qahere && npm install
 ```
 
-**macOS:** install qaHere as a desktop app:
+Then install the app:
 
 ```bash
 npm run desktop
@@ -122,14 +123,6 @@ npm run desktop
 
 On first launch macOS may ask *"qaHere would like to access files in your Documents folder"*. Click **Allow**; qaHere runs the code from the folder you downloaded.
 
-**On Windows, Linux, or if you prefer the browser:**
-
-```bash
-npm start
-```
-
-✅ Wait for `qaHere hazır → http://localhost:4310` in the terminal, then open <http://localhost:4310> in your browser. It runs as long as the terminal stays open.
-
 <details>
 <summary>About the desktop app</summary>
 
@@ -138,6 +131,19 @@ npm start
 - PDFs are saved straight to Downloads; Jira and Slack links open in your default browser.
 - The **Sunucu** (Server) menu has *Open in browser*, *Restart server* and *Show log*. If `npm start` is already running in a terminal, the app connects to it.
 - Electron takes about 300 MB and is installed only into `desktop/`. To remove the app, move `~/Applications/qaHere.app` to the Trash.
+
+</details>
+
+<details>
+<summary>On Windows or Linux (in the browser)</summary>
+
+The desktop app is macOS-only for now. On other systems you use qaHere in the browser:
+
+```bash
+npm start
+```
+
+✅ Wait for `qaHere hazır → http://localhost:4310` in the terminal, then open <http://localhost:4310> in your browser. It runs as long as the terminal stays open.
 
 </details>
 

@@ -12,6 +12,8 @@ const ORIGIN = `http://localhost:${PORT}`;
 const REPO_URL = 'https://github.com/yunusemreyildiz/qahere';
 
 app.setName('qaHere');
+// Ayrı bir profil (ör. örnek veriyle ekran görüntüsü): açık qaHere'den bağımsız ikinci bir pencere açar.
+if (process.env.QAHERE_USER_DATA) app.setPath('userData', path.resolve(process.env.QAHERE_USER_DATA));
 
 /** Depo klasörü: QAHERE_HOME > paketlerken yazılan home.json > bu klasörün bir üstü. */
 function repoRoot() {
