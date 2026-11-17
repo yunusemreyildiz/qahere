@@ -1,6 +1,12 @@
 // qaHere arayüzü. Bağımlılık yok; dışarıdan gelen her metin textContent ile yazılır.
 const $ = (s) => document.querySelector(s);
 
+// Masaüstü uygulamasında (desktop/main.js kullanıcı ajanına "qaHereDesktop" ekler) üst çubuk pencerenin başlığı olur.
+if (/\bqaHereDesktop\b/.test(navigator.userAgent)) {
+  document.documentElement.classList.add('desktop');
+  if (/Macintosh/.test(navigator.userAgent)) document.documentElement.classList.add('mac');
+}
+
 function h(tag, attrs = {}, ...kids) {
   const el = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs || {})) {
@@ -719,7 +725,7 @@ function renderGuides(key, guides, selectedId) {
       h('span', { class: 'cnum' }, h('b', {}, String(n)), ` / ${g.checkTotal} kontrol`),
       h('span', { class: 'cbar', role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': String(g.checkTotal), 'aria-valuenow': String(n) },
         h('i', { style: `width:${(n / g.checkTotal) * 100}%` })),
-      note ? h('span', { class: 'cnote bad' }, note)
+      note ? h('span', { class: 'cnote bad err' }, note)
         : failed ? h('span', { class: 'cnote bad' }, `${failed} madde kaldı`)
           : h('span', { class: 'cnote' }, all ? 'Tamamı bitti' : 'Otomatik kaydediliyor'));
   };
@@ -783,7 +789,8 @@ function renderGuides(key, guides, selectedId) {
 
   box.replaceChildren(
     h('div', { class: 'gbar' },
-      h('div', { class: 'gtitle' }, h('h2', {}, g.title), h('div', { class: 'sub' }, `${fmtDate(g.createdAt)} · ${stats}`)),
+      // İşin başlığı hemen üstte ve rehberin kendisinde yazıyor; burada rehberin ne zaman, nasıl üretildiği.
+      h('div', { class: 'gtitle' }, h('h2', {}, `${fmtDate(g.createdAt)} tarihli rehber`), h('div', { class: 'sub' }, stats)),
       progress,
       h('div', { class: 'acts' },
         version, kidsBtn, mocksBtn, regen,

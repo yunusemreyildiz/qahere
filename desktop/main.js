@@ -119,7 +119,8 @@ function page(title, body) {
   :root{color-scheme:light dark;--bg:#f3f4f6;--ink:#16191c;--mute:#59606a;--well:#fff;--rule:#d9dce0}
   @media (prefers-color-scheme:dark){:root{--bg:#121416;--ink:#eceeec;--mute:#a3a9b0;--well:#1b1e21;--rule:#2e3237}}
   body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--ink);
-  font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+  font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;-webkit-app-region:drag}
+  pre,p{-webkit-app-region:no-drag}
   main{max-width:640px;padding:32px}h1{font-size:20px;margin:0 0 8px}p{color:var(--mute);margin:0 0 16px}
   pre{background:var(--well);border:1px solid var(--rule);border-radius:8px;padding:12px;font-size:12px;
   max-height:46vh;overflow:auto;white-space:pre-wrap}
@@ -177,11 +178,20 @@ function guard(w) {
 
 function createWindow() {
   const b = savedBounds();
+  const mac = process.platform === 'darwin';
   win = new BrowserWindow({
     ...b, minWidth: 900, minHeight: 600, title: 'qaHere', show: false,
-    backgroundColor: nativeTheme.shouldUseDarkColors ? '#121416' : '#f3f4f6',
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#1b1e21' : '#ffffff',
+    // macOS: sistem başlık çubuğu yok; trafik ışıkları qaHere'nin 50 px'lik üst çubuğunun içinde, dikeyde ortalı.
+    ...(mac ? { titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 18, y: 19 } } : {}),
     webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, spellcheck: false },
   });
+  // Arayüz kendini masaüstü düzenine alsın diye (app.js bunu okuyup <html>'e sınıf ekler).
+  win.webContents.setUserAgent(`${win.webContents.getUserAgent()} qaHereDesktop`);
+  const fs_ = (on) => win.webContents.executeJavaScript(`document.documentElement.classList.toggle('fullscreen', ${on})`).catch(() => {});
+  win.on('enter-full-screen', () => fs_(true));
+  win.on('leave-full-screen', () => fs_(false));
+  win.webContents.on('dom-ready', () => fs_(win.isFullScreen()));
   guard(win);
   win.once('ready-to-show', () => win.show());
   win.on('close', () => {

@@ -311,6 +311,15 @@ pre.cmd button{border:0;background:none;color:color-mix(in srgb,var(--accent) 50
 .steps span.on{background:var(--accent)}
 .bigcheck{width:56px;height:56px;border-radius:50%;background:color-mix(in srgb,var(--ok) 14%,transparent);color:var(--ok);display:grid;place-items:center;margin:0 auto 14px}
 
+/* Masaüstü uygulaması (macOS): üst çubuk pencerenin başlığıdır. Trafik ışıkları solda (desktop/main.js
+   trafficLightPosition), çubuk sürüklenir, çift tıklama pencereyi büyütür. Tam ekranda ışıklar gizlenir, boşluk kalkar. */
+html.desktop .bar{-webkit-app-region:drag;-webkit-user-select:none;user-select:none}
+html.desktop .bar button,html.desktop .bar a,html.desktop .bar select{-webkit-app-region:no-drag}
+html.desktop.mac .bar{padding-left:94px}
+html.desktop.mac.fullscreen .bar{padding-left:18px}
+html.desktop.mac .onboard{padding-top:calc(7vh + 24px)}
+html.desktop.mac .onboard::before{content:"";position:fixed;inset:0 0 auto;height:44px;-webkit-app-region:drag;z-index:1}
+
 /* Rehber düzeni: üstte ince iş şeridi + araç çubuğu, altta rehber ekranı doldurur */
 .main.gmode{display:flex;flex-direction:column;overflow:hidden}
 .gtop{flex:none;padding:14px 20px 0;max-height:60%;overflow:auto}
@@ -337,6 +346,8 @@ pre.cmd button{border:0;background:none;color:color-mix(in srgb,var(--accent) 50
 .checks.all .cbar i{background:var(--ok)} .checks.all .cnum b{color:var(--ok)}
 .cnote{font-size:12px;color:var(--faint);white-space:nowrap}
 .cnote.bad{color:var(--bad);white-space:normal}
+/* Rehberin kendi yan sütunu (≥760 px çerçevede) ilerlemeyi gösterir; üst çubukta yalnızca kayıt hatası kalır. */
+@media (min-width:1240px){ .gbar .checks > :not(.err){display:none} }
 select.ver{font-family:var(--sans);font-size:13px;padding:6px 28px 6px 10px}
 
 @media (max-width:860px){
