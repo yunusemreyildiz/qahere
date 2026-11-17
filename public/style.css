@@ -395,6 +395,7 @@ html.desktop.mac .onboard::before{content:"";position:fixed;inset:0 0 auto;heigh
 .bb-row{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .bb-row + p,.bb-card > .bb-row:last-child{margin-top:6px}
 .bb-pl{font-size:12px;color:var(--faint);white-space:nowrap}
+.bb-card p.bb-sim{color:var(--warn);font-weight:500}
 .ask-deep input{accent-color:var(--accent);margin:0}
 @media (max-width:1180px){
   .ask{position:absolute;top:0;right:0;bottom:0;z-index:4;width:min(380px,92%);box-shadow:-12px 0 32px rgba(0,0,0,.14)}

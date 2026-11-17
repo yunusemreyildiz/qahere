@@ -62,6 +62,7 @@ async function connectorHealth() {
     atlassian: find(/atlassian(?! rovo)|jira/i),
     confluence: find(/atlassian(?! rovo)|confluence/i),
     docs: find(/claude docs/i),
+    figma: find(/figma/i),
     proxyman: find(/proxyman/i),
   };
 }

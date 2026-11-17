@@ -84,10 +84,10 @@ claude
 
 ### 3. Okunacak kaynakları Claude hesabına bağla
 
-Rehberin Slack, Notion, Confluence ya da Claude Docs'u okuyabilmesi için bu bağlantıların Claude hesabında açık olması gerekir.
+Rehberin Slack, Notion, Confluence, Figma ya da Claude Docs'u okuyabilmesi için bu bağlantıların Claude hesabında açık olması gerekir.
 
 1. <https://claude.ai> → **Ayarlar → Bağlayıcılar (Connectors)** sayfasını aç.
-2. Kullanacaklarını bağla: **Slack**, **Notion**, Confluence için **Atlassian**. İzin ekranında onay ver.
+2. Kullanacaklarını bağla: **Slack**, **Notion**, **Figma**, Confluence için **Atlassian**. İzin ekranında onay ver.
 
 Terminalde `claude` açıkken `/mcp` yazıp aynı bağlantılara oradan da giriş yapabilirsin. Bazı şirketlerde bağlantıyı önce bir yöneticinin onaylaması gerekir.
 
@@ -207,12 +207,12 @@ Rehberi okurken aklına takılanı araç çubuğundaki **Rehbere sor**'dan sorar
 <p><img src="docs/screenshots/ask.png" alt="Rehbere sor paneli: soru ve rehbere dayanan yanıt"></p>
 
 - Claude rehberde yazanları ve işaretlediğin kontrolleri bilerek yanıtlar, dayandığı bölümü söyler. "Hangi maddeler bitmedi?" gibi sorular da çalışır. Yanıt yaklaşık 15–20 saniyede yazılmaya başlar.
-- Rehberde olmayan bir şey için **Kaynaklara da bak**'ı aç: Claude Jira'da ve açık kaynaklarda (Slack, Notion…) yalnızca okuyarak arar, bulduğu yerin bağlantısını verir. Daha yavaştır ve bir soru, araçsız sorunun yaklaşık on katı kullanım harcar.
+- Rehberde olmayan ya da güncel bir şey sorarsan ("bu iş şimdi hangi durumda?", "Figma'da bu butonun metni ne?") Claude Jira, Slack, Notion, Confluence ve Figma'da yalnızca okuyarak arar ve bulduğu yerin bağlantısını verir. Rehberden yanıtlanan soru 15–20 saniye sürer; kaynaklara bakması gereken soru 1 dakikayı bulabilir ve daha çok kullanım harcar.
 - Konuşma rehberle birlikte saklanır; **Temizle** siler. Her soru Claude kullanım hakkından düşer.
 
 ### Bugbot ile hata açmak
 
-Test ederken bir hataya denk geldiysen araç çubuğundaki **Bugbot**'a anlat ("Android'de kayıtsız e-postada 'hesap yok' yazıyor"). Bugbot rehberdeki beklenen davranışla karşılaştırır; rehbere göre bu bir hata değilse dayanağıyla söyler, eksik bilgi varsa (build, adımlar, hata metni) en çok iki soru sorar ve kayıt taslağını bir kart olarak çıkarır.
+Test ederken bir hataya denk geldiysen araç çubuğundaki **Bugbot**'a anlat ("Android'de kayıtsız e-postada 'hesap yok' yazıyor"). Bugbot rehberdeki beklenen davranışla karşılaştırır (gerekirse Jira, Slack, Notion ve Figma'ya da bakar), Jira'da benzer açık kayıt var mı arar; rehbere göre bu bir hata değilse dayanağıyla söyler, eksik bilgi varsa (build, adımlar, hata metni) en çok iki soru sorar ve kayıt taslağını bir kart olarak çıkarır.
 
 - Ekran görüntüsünü panele yapıştırabilirsin (⌘V); Claude'a gönderilmez, kayda eklenir.
 - **Kaydı hazırla** her zamanki önizleme penceresini dolu açar; eşleşen kontrol maddesi varsa kayıt ona bağlanır. Onaylamadan hiçbir şey açılmaz.
@@ -274,7 +274,7 @@ Ayarlar arayüzden yapılır ve `data/settings.json` dosyasında saklanır (git'
 | --- | --- |
 | Jira adresi, e-posta, API token | Liste, arama ve ön veri için. Adres değişirse token yeniden istenir. |
 | Projeler | Soldaki listede görünecek Jira projeleri |
-| Kaynaklar | Slack, Notion, Confluence, Claude Docs, Proxyman; kapalı kaynağa hiç bakılmaz |
+| Kaynaklar | Slack, Notion, Confluence, Figma, Claude Docs, Proxyman; kapalı kaynağa hiç bakılmaz |
 | Çalışma alanı, vurgu rengi | Arayüzde ve rehber kapağında görünür |
 | Model | `sonnet` dengeli, `opus` daha derin, `haiku` en hafif |
 

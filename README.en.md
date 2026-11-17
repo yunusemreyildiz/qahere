@@ -86,10 +86,10 @@ claude
 
 ### 3. Connect the sources to your Claude account
 
-For the guide to read Slack, Notion, Confluence or Claude Docs, those connectors must be enabled on your Claude account.
+For the guide to read Slack, Notion, Confluence, Figma or Claude Docs, those connectors must be enabled on your Claude account.
 
 1. Open <https://claude.ai> → **Settings → Connectors**.
-2. Connect the ones you'll use: **Slack**, **Notion**, and **Atlassian** for Confluence. Approve the permission screen.
+2. Connect the ones you'll use: **Slack**, **Notion**, **Figma**, and **Atlassian** for Confluence. Approve the permission screen.
 
 You can also type `/mcp` inside `claude` in a terminal and sign in to the same connectors there. In some companies an admin has to approve a connector first.
 
@@ -209,12 +209,12 @@ Anything you wonder about while reading, ask with **Rehbere sor** (Ask the guide
 <p><img src="docs/screenshots/ask.png" alt="Ask the guide panel: a question and an answer grounded in the guide"></p>
 
 - Claude answers knowing what the guide says and which checks you've marked, and names the section it relied on. Questions like "which items are still open?" work too. The answer starts in about 15–20 seconds.
-- For something the guide doesn't cover, turn on **Kaynaklara da bak** (Also check sources): Claude searches Jira and your enabled sources (Slack, Notion…) read-only and links to what it found. It's slower, and a question uses roughly ten times as much as a plain one.
+- If you ask something the guide doesn't cover or something current ("what's this issue's status now?", "what does this button say in Figma?"), Claude searches Jira, Slack, Notion, Confluence and Figma read-only and links to what it found. Questions answered from the guide take 15–20 seconds; ones that need the sources can take a minute and use more.
 - The conversation is saved with the guide; **Temizle** (Clear) deletes it. Each question counts against your Claude usage.
 
 ### Filing a bug with Bugbot
 
-If you run into a bug while testing, describe it to **Bugbot** in the toolbar ("on Android an unregistered email shows 'no account'"). Bugbot compares it with the expected behaviour in the guide; if the guide says it's expected, it tells you why. If something is missing (build, steps, the error text) it asks at most two questions, then shows the bug draft as a card.
+If you run into a bug while testing, describe it to **Bugbot** in the toolbar ("on Android an unregistered email shows 'no account'"). Bugbot compares it with the expected behaviour in the guide (checking Jira, Slack, Notion and Figma if needed) and searches Jira for similar open bugs; if the guide says it's expected, it tells you why. If something is missing (build, steps, the error text) it asks at most two questions, then shows the bug draft as a card.
 
 - Paste screenshots into the panel (⌘V); they aren't sent to Claude, they're attached to the bug.
 - **Kaydı hazırla** (Prepare the bug) opens the usual preview window filled in; if a checklist item matches, the bug is linked to it. Nothing is filed until you confirm.
@@ -276,7 +276,7 @@ Settings are made in the UI and stored in `data/settings.json` (never committed)
 | --- | --- |
 | Jira address, email, API token | For the list, search and pre-fetched data. Changing the address asks for the token again. |
 | Projects | Jira projects shown in the left list |
-| Sources | Slack, Notion, Confluence, Claude Docs, Proxyman; disabled sources are never read |
+| Sources | Slack, Notion, Confluence, Figma, Claude Docs, Proxyman; disabled sources are never read |
 | Workspace, accent color | Shown in the UI and on the guide cover |
 | Model | `sonnet` balanced, `opus` deeper, `haiku` lightest |
 

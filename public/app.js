@@ -73,6 +73,7 @@ const SOURCES = [
   { key: 'slack', name: 'Slack', desc: 'Kanallardaki ve thread\'lerdeki ilgili yazışmalar' },
   { key: 'notion', name: 'Notion', desc: 'İşlerde bağlantısı verilen sayfalar' },
   { key: 'confluence', name: 'Confluence', desc: 'Analiz, teknik tasarım ve kontrat sayfaları' },
+  { key: 'figma', name: 'Figma', desc: 'İşlerde bağlantısı verilen tasarım ekranları: metinler, durumlar, akış' },
   { key: 'docs', name: 'Claude Docs', desc: 'İşlerde bağlantısı verilen claude.ai doküman ve artifact\'leri' },
   { key: 'proxyman', name: 'Proxyman', desc: 'Yakalanan gerçek istek ve yanıtlar (kontratla karşılaştırma). Claude Code\'a bir kez eklenir: claude mcp add -s user proxyman -- /Applications/Proxyman.app/Contents/MacOS/mcp-server' },
 ];
@@ -893,7 +894,6 @@ function chatView(g, mode, { frame }) {
   const field = bot ? 'bugbot' : 'chat';
   const thread = h('div', { class: 'ask-thread', 'aria-live': 'polite' });
   const input = h('textarea', { rows: '2', placeholder: bot ? 'Ne oldu? Hangi ekranda, ne yaptın, ne gördün?' : 'Rehberle ilgili sorunu yaz', 'aria-label': bot ? 'Hatayı anlat' : 'Soru' });
-  const deep = h('input', { type: 'checkbox' });
   const pl = { v: (state.config.profile?.platforms?.length === 1 ? state.config.profile.platforms[0] : 'both') };
   const plSeg = h('div', { class: 'seg mini' });
   const paintPl = () => plSeg.replaceChildren(...BOT_PL.map(([k, n]) => h('button', { type: 'button', class: pl.v === k ? 'active' : '', onclick: () => { pl.v = k; paintPl(); } }, n)));
@@ -957,6 +957,8 @@ function chatView(g, mode, { frame }) {
       d.happened ? h('p', {}, h('span', {}, 'Gerçekleşen: '), d.happened) : null,
       d.expected ? h('p', {}, h('span', {}, 'Beklenen: '), d.expected) : null,
       d.steps?.length ? h('ol', {}, ...d.steps.map((s) => h('li', {}, s))) : null,
+      d.similar?.length ? h('p', { class: 'bb-sim' }, 'Benzer açık kayıt: ', ...d.similar.flatMap((k, i) => [i ? ', ' : '',
+        state.config.jiraBaseUrl ? h('a', { href: `${state.config.jiraBaseUrl}/browse/${k}`, target: '_blank', rel: 'noopener' }, k) : k]), ' — kopya olmadığından emin ol.') : null,
       h('div', { class: 'bb-row' },
         h('span', { class: 'hint' }, d.ready ? (d.item ? `${d.item}. kontrol maddesine bağlanır` : 'Hazır') : 'Eksik bilgi var; yanıtlayınca güncellenir'),
         h('button', { class: `btn sm${d.ready ? '' : ' plain'}`, type: 'button', onclick: () => openDraft(entry) }, 'Kaydı hazırla')));
@@ -965,7 +967,7 @@ function chatView(g, mode, { frame }) {
     h('div', { class: 'ask-q' }, c.q),
     h('div', { class: 'ask-a' }, richText(c.a)),
     bot && last ? draftCard(c) : (bot && c.filed ? draftCard(c) : null),
-    h('div', { class: 'ask-meta' }, [fmtDate(c.at), bot ? null : (c.deep ? 'kaynaklara da bakıldı' : 'rehberden'), c.stats?.durationMs ? `${Math.max(1, Math.round(c.stats.durationMs / 1000))} sn` : null].filter(Boolean).join(' · ')));
+    h('div', { class: 'ask-meta' }, [fmtDate(c.at), c.stats ? (c.stats.tools ? `${c.stats.tools} kaynak sorgusu` : 'rehberden') : null, c.stats?.durationMs ? `${Math.max(1, Math.round(c.stats.durationMs / 1000))} sn` : null].filter(Boolean).join(' · ')));
 
   function paint() {
     const chat = Array.isArray(g[field]) ? g[field] : [];
@@ -973,11 +975,11 @@ function chatView(g, mode, { frame }) {
     if (!chat.length && !busy) {
       thread.replaceChildren(bot
         ? h('div', { class: 'ask-empty' },
-          h('p', {}, 'Test ederken karşılaştığın hatayı anlat. Bugbot rehberdeki beklenen davranışla karşılaştırır, eksik bilgiyi sorar ve kayıt taslağını çıkarır; "Kaydı hazırla" ile önizler, onaylarsan qaHere Jira\'da açar.'),
+          h('p', {}, 'Test ederken karşılaştığın hatayı anlat. Bugbot rehberdeki beklenen davranışla karşılaştırır, Jira\'da benzer açık kayıt var mı bakar, eksik bilgiyi sorar ve kayıt taslağını çıkarır; "Kaydı hazırla" ile önizler, onaylarsan qaHere Jira\'da açar.'),
           h('p', {}, 'Ekran görüntüsünü buraya yapıştırabilirsin (⌘V); Claude\'a gönderilmez, kayda eklenir.'),
           h('p', { class: 'ask-note' }, 'Her mesaj Claude kullanım hakkından düşer.'))
         : h('div', { class: 'ask-empty' },
-          h('p', {}, 'Rehberde yazanları ve işaretlediğin kontrolleri bilerek yanıtlar. Rehberde olmayan bir şey için "Kaynaklara da bak"ı aç.'),
+          h('p', {}, 'Rehberde yazanları ve işaretlediğin kontrolleri bilerek yanıtlar; rehberde olmayan ya da güncel bir şey sorarsan Jira, Slack, Notion, Confluence ve Figma\'da yalnızca okuyarak arar.'),
           ...ASK_SUGGEST.map((q) => h('button', { class: 'ask-sug', type: 'button', onclick: () => { input.value = q; submit(); } }, q)),
           h('p', { class: 'ask-note' }, 'Her soru Claude kullanım hakkından düşer.')));
       return;
@@ -991,17 +993,17 @@ function chatView(g, mode, { frame }) {
     if (!question || busy) return;
     const ctrl = new AbortController();
     const live = h('div', { class: 'ask-a live' });
-    const step = h('div', { class: 'ask-meta' }, bot ? 'Rehberle karşılaştırılıyor…' : deep.checked ? 'Rehbere ve kaynaklara bakılıyor…' : 'Rehbere bakılıyor…');
+    const step = h('div', { class: 'ask-meta' }, bot ? 'Rehberle karşılaştırılıyor…' : 'Rehbere bakılıyor…');
     busy = ctrl;
     if (!(g[field] || []).length) thread.replaceChildren();
     thread.append(h('div', { class: 'ask-ex' }, h('div', { class: 'ask-q' }, question), live, step));
     thread.scrollTop = thread.scrollHeight;
-    input.value = ''; input.disabled = true; deep.disabled = true;
+    input.value = ''; input.disabled = true;
     sendBtn.textContent = 'Durdur'; sendBtn.type = 'button'; sendBtn.onclick = () => ctrl.abort();
     let text = '';
     try {
       const res = await fetch(`/api/guides/${g.key}/${g.id}/${bot ? 'bugbot' : 'ask'}`, { method: 'POST', signal: ctrl.signal, headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(bot ? { question, platform: pl.v } : { question, deep: deep.checked }) });
+        body: JSON.stringify(bot ? { question, platform: pl.v } : { question }) });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `Sunucu ${res.status} döndü.`);
       const reader = res.body.getReader();
       const dec = new TextDecoder();
@@ -1031,7 +1033,7 @@ function chatView(g, mode, { frame }) {
       if (!input.value) input.value = question;
     } finally {
       busy = null;
-      input.disabled = false; deep.disabled = false;
+      input.disabled = false;
       sendBtn.textContent = bot ? 'Gönder' : 'Sor'; sendBtn.type = 'submit'; sendBtn.onclick = null;
       thread.scrollTop = thread.scrollHeight;
       input.focus();
@@ -1042,7 +1044,7 @@ function chatView(g, mode, { frame }) {
   const row = bot
     ? h('div', { class: 'ask-row' }, plSeg, h('div', { class: 'ask-row-r' },
       h('button', { class: 'btn plain sm', type: 'button', title: 'Ekran görüntüsü ekle', onclick: () => fileInput.click() }, 'Görsel'), sendBtn))
-    : h('div', { class: 'ask-row' }, h('label', { class: 'ask-deep', title: 'Claude Jira\'da ve açık kaynaklarda okuyarak arar; daha yavaştır ve yaklaşık on kat kullanım harcar.' }, deep, 'Kaynaklara da bak (yavaş)'), sendBtn);
+    : h('div', { class: 'ask-row' }, h('span', { class: 'ask-deep' }, 'Gerekirse Jira, Slack, Notion, Confluence ve Figma\'ya da bakar'), sendBtn);
   const el = h('div', { class: 'ask-view' },
     h('div', { class: 'ask-sub' }, h('span', {}, bot ? 'Karşılaştığın hatayı konuş, kaydı birlikte hazırlayın.' : 'Rehber hakkında soru sor.'), clearBtn),
     thread,
@@ -1071,7 +1073,7 @@ function withViewer(html, [js, css]) {
 window.addEventListener('message', (e) => state.onChecks?.(e));
 
 /** Reddedilen araçları kaynağa çevirir; kapalı kaynak varsa tek tıkla açtırır. */
-const DENIAL_SOURCES = [[/Claude_Docs/i, 'docs'], [/slack/i, 'slack'], [/notion/i, 'notion'], [/confluence/i, 'confluence'], [/proxyman/i, 'proxyman']];
+const DENIAL_SOURCES = [[/Claude_Docs/i, 'docs'], [/slack/i, 'slack'], [/notion/i, 'notion'], [/confluence/i, 'confluence'], [/figma/i, 'figma'], [/proxyman/i, 'proxyman']];
 function denialNotes(g) {
   const denied = [...new Set(g.stats?.denials || [])];
   if (!denied.length) return [];
