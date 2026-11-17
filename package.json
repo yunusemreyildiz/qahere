@@ -9,6 +9,7 @@
   },
   "scripts": {
     "start": "node bin/qahere.js",
+    "desktop": "npm --prefix desktop install && npm --prefix desktop run build -- --install --open",
     "doctor": "node server.js --doctor"
   },
   "dependencies": {

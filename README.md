@@ -100,7 +100,7 @@ Hata kaydına istek eklemek ve mock kurmak için bu adım gerekmez; qaHere Proxy
 
 > qaHere yalnızca **senin** görebildiğin içeriği okur. Üyesi olmadığın özel kanallar rehbere girmez. Hiçbir kaynağa yazmaz.
 
-### 4. qaHere'yi indir ve başlat
+### 4. qaHere'yi indir ve kur
 
 ```bash
 git clone https://github.com/yunusemreyildiz/qahere.git
@@ -110,11 +110,34 @@ git clone https://github.com/yunusemreyildiz/qahere.git
 cd qahere && npm install
 ```
 
+**macOS:** qaHere'yi masaüstü uygulaması olarak kur:
+
+```bash
+npm run desktop
+```
+
+✅ Birkaç dakika sürer (Electron indirilir). Sonunda **qaHere** kendi penceresinde açılır. Sonraki açılışlarda terminale gerek yok: Launchpad'den, Spotlight'tan (⌘ Boşluk → "qaHere") ya da Dock'a sabitlediğin simgeden aç.
+
+İlk açılışta macOS *"qaHere, Belgeler klasöründeki dosyalara erişmek istiyor"* diye sorabilir. **İzin Ver**'e bas; qaHere, indirdiğin klasördeki kodu buradan çalıştırır.
+
+**Windows, Linux ya da tarayıcıda kullanmak istersen:**
+
 ```bash
 npm start
 ```
 
-✅ Terminalde `qaHere hazır → http://localhost:4310` yazısını gör, sonra tarayıcıda <http://localhost:4310> adresini aç.
+✅ Terminalde `qaHere hazır → http://localhost:4310` yazısını gör, sonra tarayıcıda <http://localhost:4310> adresini aç. Terminal açık kaldığı sürece çalışır.
+
+<details>
+<summary>Masaüstü uygulaması hakkında</summary>
+
+- Uygulama sunucuyu kendisi başlatır, çıkınca (⌘Q) durdurur. Pencereyi kapatmak qaHere'yi Dock'ta açık bırakır; rehber üretimi sürerken çıkmak istersen önce sorar.
+- Kod uygulamanın içine kopyalanmaz, indirdiğin `qahere` klasöründen çalışır. Bu yüzden **Güncelle** düğmesi uygulamayı da günceller. Klasörü taşırsan `npm run desktop`'ı yeniden çalıştır.
+- PDF'ler doğrudan İndirilenler'e kaydedilir; Jira ve Slack bağlantıları varsayılan tarayıcında açılır.
+- **Sunucu** menüsünde *Tarayıcıda aç*, *Sunucuyu yeniden başlat* ve *Günlüğü göster* var. Terminalde `npm start` zaten açıksa uygulama ona bağlanır.
+- Electron yaklaşık 300 MB yer kaplar ve yalnızca `desktop/` klasörüne kurulur. Kaldırmak için `~/Applications/qaHere.app`'i çöpe at.
+
+</details>
 
 ### 5. İlk açılış adımlarını tamamla
 
@@ -148,25 +171,6 @@ Her şeyi sonradan sağ üstteki ⚙️ **Ayarlar**'dan değiştirebilirsin. Kur
 ```bash
 npm run doctor
 ```
-
-### 6. İsteğe bağlı: masaüstü uygulaması (macOS)
-
-Terminal ve tarayıcı sekmesi yerine Dock'ta duran bir **qaHere** uygulaması istersen:
-
-```bash
-cd desktop && npm install
-```
-
-```bash
-npm run build -- --install
-```
-
-✅ `~/Applications/qaHere.app` oluşur; Launchpad ya da Spotlight'tan aç. Uygulama sunucuyu kendisi başlatır, kapatınca durdurur; terminalde `npm start` açıksa ona bağlanır.
-
-- Uygulama ince bir kabuktur: kodu bu klasörden çalıştırır. **Güncelle** düğmesi uygulamayı da günceller; depoyu taşırsan `npm run build -- --install`'ı yeniden çalıştır.
-- İlk açılışta macOS klasör erişimi sorabilir (depo Belgeler'deyse); **İzin Ver**'e bas.
-- PDF'ler doğrudan İndirilenler'e kaydedilir; Jira ve Slack bağlantıları varsayılan tarayıcında açılır.
-- Electron yaklaşık 300 MB yer kaplar ve yalnızca `desktop/` klasörüne kurulur; masaüstü uygulaması istemeyenleri etkilemez.
 
 ---
 
@@ -278,6 +282,7 @@ Aynı değerleri `.env` dosyasıyla da verebilirsin (bkz. `.env.example`); aray�
 | Rehberde bir kaynağa "bakılamadı" yazıyor | Sağ üstte **Durum → Bağlantıları denetle**. "Giriş gerekiyor" diyorsa 3. adımı tekrarla. |
 | "Claude beklenen biçimde rehber üretmedi" | Tekrar dene. Sürerse terminalde `claude` açıp giriş yaptığından emin ol. |
 | "Süre doldu" | Çok büyük epic. `GENERATE_TIMEOUT_MIN`'i artır ya da alt işler için ayrı üret. |
+| Masaüstü uygulaması "qaHere açılıyor"da kalıyor | macOS'un klasör erişimi sorusu arkada kalmış olabilir: **İzin Ver**'e bas ya da Sistem Ayarları → Gizlilik ve Güvenlik → Dosyalar ve Klasörler'de qaHere'yi aç. Sürmüyorsa **Sunucu → Günlüğü göster**. |
 | PDF inmiyor | Chrome/Edge kurulu değil. *Yeni sekmede aç* → tarayıcıdan Yazdır → PDF olarak kaydet. |
 | Port dolu | `.env`'de `PORT=4311` yap. |
 
@@ -322,7 +327,7 @@ qahere/
 │   └── store.js         Rehber arşivi ve kontrol işaretleri (data/guides)
 ├── prompts/rehber.md    Rehberin nasıl yazılacağını anlatan talimat (bölümler: bolumler-ozellik.md, bolumler-hata.md)
 ├── templates/guide.css  Rehberin ve PDF'in görünümü
-├── desktop/             İsteğe bağlı macOS uygulaması (Electron kabuğu)
+├── desktop/             macOS masaüstü uygulaması (Electron kabuğu, npm run desktop)
 ├── public/              Arayüz (bağımlılıksız HTML/CSS/JS) ve rehber görüntüleyici
 ├── docs/                README görselleri
 └── data/                Ayarlar ve üretilen rehberler (git'e girmez)

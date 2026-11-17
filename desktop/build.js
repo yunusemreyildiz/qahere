@@ -1,7 +1,8 @@
 // qaHere.app'i bu bilgisayar için paketler. Uygulama ince bir kabuktur: sunucu kodunu paketin içine almaz,
 // bu depodan çalıştırır (home.json depo yolunu tutar). Böylece "Güncelle" düğmesi uygulamayı da günceller.
 //   npm run build            → desktop/dist/ içine qaHere.app
-//   npm run build -- --install → ayrıca ~/Applications/qaHere.app olarak kopyalar
+//   npm run build -- --install → ayrıca ~/Applications/qaHere.app olarak kopyalar (--open: ardından açar)
+// Depo kökünden tek komut: npm run desktop
 import { packager } from '@electron/packager';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -52,4 +53,5 @@ if (install && process.platform === 'darwin') {
   fs.rmSync(dest, { recursive: true, force: true });
   execFileSync('ditto', [appPath, dest]);
   console.log(`Kuruldu: ${dest} (Launchpad / Spotlight'ta "qaHere")`);
+  if (process.argv.includes('--open')) execFileSync('open', [dest]);
 }

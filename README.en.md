@@ -102,7 +102,7 @@ Attaching requests to bugs and setting up mocks don't need this step; qaHere tal
 
 > qaHere only reads content **you** can see. Private channels you're not a member of never end up in a guide. It never writes to any source.
 
-### 4. Download and start qaHere
+### 4. Download and install qaHere
 
 ```bash
 git clone https://github.com/yunusemreyildiz/qahere.git
@@ -112,11 +112,34 @@ git clone https://github.com/yunusemreyildiz/qahere.git
 cd qahere && npm install
 ```
 
+**macOS:** install qaHere as a desktop app:
+
+```bash
+npm run desktop
+```
+
+✅ This takes a few minutes (Electron is downloaded). At the end **qaHere** opens in its own window. From then on you don't need the terminal: open it from Launchpad, Spotlight (⌘ Space → "qaHere") or the Dock icon if you pin it.
+
+On first launch macOS may ask *"qaHere would like to access files in your Documents folder"*. Click **Allow**; qaHere runs the code from the folder you downloaded.
+
+**On Windows, Linux, or if you prefer the browser:**
+
 ```bash
 npm start
 ```
 
-✅ Wait for `qaHere hazır → http://localhost:4310` in the terminal, then open <http://localhost:4310> in your browser.
+✅ Wait for `qaHere hazır → http://localhost:4310` in the terminal, then open <http://localhost:4310> in your browser. It runs as long as the terminal stays open.
+
+<details>
+<summary>About the desktop app</summary>
+
+- The app starts the server itself and stops it when you quit (⌘Q). Closing the window keeps qaHere in the Dock; if a guide is being generated, it asks before quitting.
+- The code isn't copied into the app; it runs from the `qahere` folder you downloaded. That's why the **Güncelle** (Update) button updates the app too. If you move the folder, run `npm run desktop` again.
+- PDFs are saved straight to Downloads; Jira and Slack links open in your default browser.
+- The **Sunucu** (Server) menu has *Open in browser*, *Restart server* and *Show log*. If `npm start` is already running in a terminal, the app connects to it.
+- Electron takes about 300 MB and is installed only into `desktop/`. To remove the app, move `~/Applications/qaHere.app` to the Trash.
+
+</details>
 
 ### 5. Finish the first-run steps
 
@@ -150,25 +173,6 @@ You can change everything later under ⚙️ **Settings** in the top right. To c
 ```bash
 npm run doctor
 ```
-
-### 6. Optional: desktop app (macOS)
-
-If you'd rather have a **qaHere** app in the Dock instead of a terminal and a browser tab:
-
-```bash
-cd desktop && npm install
-```
-
-```bash
-npm run build -- --install
-```
-
-✅ This creates `~/Applications/qaHere.app`; open it from Launchpad or Spotlight. The app starts the server itself and stops it when you quit; if `npm start` is already running in a terminal, it connects to that.
-
-- The app is a thin shell that runs the code from this folder. The **Güncelle** (Update) button updates the app too; if you move the folder, run `npm run build -- --install` again.
-- On first launch macOS may ask for folder access (if the repo is under Documents); click **Allow**.
-- PDFs are saved straight to Downloads; Jira and Slack links open in your default browser.
-- Electron takes about 300 MB and is installed only into `desktop/`; it doesn't affect anyone who doesn't want the desktop app.
 
 ---
 
@@ -280,6 +284,7 @@ You can also provide the same values in a `.env` file (see `.env.example`); sett
 | The guide says a source couldn't be read | Top right: **Durum → Bağlantıları denetle** (Status → Check connections). If it says sign-in is required, repeat step 3. |
 | "Claude didn't produce a guide in the expected format" | Try again. If it persists, open `claude` in a terminal and make sure you're signed in. |
 | Time limit reached | Very large epic. Increase `GENERATE_TIMEOUT_MIN` or generate per sub-task. |
+| The desktop app stays on "qaHere açılıyor" (starting) | macOS's folder-access prompt may be hidden behind it: click **Allow**, or enable qaHere under System Settings → Privacy & Security → Files and Folders. Otherwise check **Sunucu → Günlüğü göster** (Server → Show log). |
 | PDF doesn't download | Chrome/Edge isn't installed. *Open in new tab* → Print → Save as PDF. |
 | Port in use | Set `PORT=4311` in `.env`. |
 
@@ -324,7 +329,7 @@ qahere/
 │   └── store.js         Guide archive and checklist ticks (data/guides)
 ├── prompts/rehber.md    Instructions for how the guide is written (sections: bolumler-ozellik.md, bolumler-hata.md)
 ├── templates/guide.css  Guide and PDF styles
-├── desktop/             Optional macOS app (Electron shell)
+├── desktop/             macOS desktop app (Electron shell, npm run desktop)
 ├── public/              UI (dependency-free HTML/CSS/JS) and the guide viewer
 ├── docs/                README images
 └── data/                Settings and generated guides (never committed)
