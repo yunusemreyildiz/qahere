@@ -10,6 +10,7 @@
   const KINDS = [
     { k: 'uretme', re: /yeniden üret|nasıl üretilir/i, tier: 'test' },
     { k: 'koken', re: /kök neden/i, tier: 'detay' },
+    { k: 'sira', re: /test sırası|iş sırası|hangi sırayla/i, tier: 'test' },
     { k: 'akis', re: /akış/i, tier: 'test' },
     { k: 'celiski', re: /çelişki|belirsiz/i, tier: 'test' },
     { k: 'kontrol', re: /kontrol/i, tier: 'test' },
@@ -25,7 +26,7 @@
     { k: 'kaynak', re: /kaynak/i, tier: 'detay' },
     { k: 'durum', re: /durum/i, tier: 'test' },
   ];
-  const ORDER = ['ozet', 'durum', 'ortam', 'hazirlik', 'uretme', 'celiski', 'akis', 'kontrol', 'event', 'platform', '?', 'kime', 'servis', 'otomasyon', 'harita', 'koken', 'karar', 'kaynak'];
+  const ORDER = ['ozet', 'durum', 'ortam', 'hazirlik', 'uretme', 'celiski', 'sira', 'akis', 'kontrol', 'event', 'platform', '?', 'kime', 'servis', 'otomasyon', 'harita', 'koken', 'karar', 'kaynak'];
   const clean = (t) => t.replace(/\s+/g, ' ').trim().replace(/^\d+[.)]\s*/, '');
 
   const cover = body.querySelector(':scope > .cover');
@@ -186,7 +187,11 @@
     plRow.append(b);
     return b;
   });
-  meter.append(nums, bar, plRow, next, only);
+  // Epic'te iş iş ilerleme: kontrol listesinin "ANAHTAR · iş adı" alt başlıkları, Test sırası bölümündeki sırayla.
+  const curBtn = make('button', 'curtask');
+  curBtn.type = 'button';
+  curBtn.hidden = true;
+  meter.append(nums, bar, curBtn, plRow, next, only);
   if (items.length) rail.append(meter);
 
   const counters = [];
@@ -237,6 +242,29 @@
   buildGroup('Test için', 'test');
   buildGroup('Ayrıntılar', 'detay');
 
+  const KEY = /\b[A-Z][A-Z0-9]+-\d+\b/;
+  const kontrolSec = sections.find((s) => s.k === 'kontrol');
+  const taskGroups = kontrolSec ? groupsOf(kontrolSec.el).filter((g) => KEY.test(g.title)).map((g) => ({ ...g, key: g.title.match(KEY)[0] })) : [];
+  const orderEls = [...d.querySelectorAll('ol.order > li[data-key]')];
+  const orderKeys = orderEls.map((li) => li.dataset.key);
+  // Test sırası varsa o sırayla; yoksa kontrol listesindeki sırayla.
+  const tasks = orderKeys.length
+    ? [...orderKeys.map((k) => taskGroups.find((g) => g.key === k)).filter(Boolean), ...taskGroups.filter((g) => !orderKeys.includes(g.key))]
+    : taskGroups;
+  const orderBadges = orderEls.map((li) => {
+    const g = taskGroups.find((x) => x.key === li.dataset.key);
+    if (!g) return null;
+    const n = make('button', 'n ord');
+    n.type = 'button';
+    n.title = 'Bu işin kontrollerine git';
+    n.addEventListener('click', () => go(g.h3 || g.items[0]));
+    li.append(' ', n);
+    return { li, g, n };
+  }).filter(Boolean);
+  // Şu anki iş: işaretlenmemiş maddesi olan ilk iş. "Kaldı" işaretli madde düzeltme bekler; sırayı tutmaz.
+  const currentTask = () => tasks.find((g) => g.items.some(isOpen));
+  curBtn.addEventListener('click', () => { const g = currentTask(); if (g) go(g.h3 || g.items[0]); });
+
   const paint = () => {
     const done = items.filter(isDone).length;
     const failed = items.filter(isFail).length;
@@ -247,6 +275,25 @@
     meter.classList.toggle('all', items.length > 0 && done === items.length);
     next.disabled = done === items.length;
     plBtns.forEach((b, i) => b.setAttribute('aria-pressed', String(platforms.includes(ALL[i]))));
+    if (tasks.length > 1) {
+      const g = currentTask();
+      const i = g ? tasks.indexOf(g) : tasks.length;
+      curBtn.hidden = false;
+      curBtn.classList.toggle('all', !g);
+      const failedAll = items.filter(isFail).length;
+      curBtn.replaceChildren(make('span', 'ct-l', g ? `Şu anki iş · ${i + 1}/${tasks.length}` : failedAll ? `${tasks.length} iş test edildi · ${failedAll} madde düzeltme bekliyor` : `${tasks.length} işin hepsi bitti`),
+        ...(g ? [make('span', 'ct-t', g.title), make('span', 'ct-n', `${g.items.filter(isDone).length}/${g.items.length} kontrol`)] : []));
+    }
+    for (const o of orderBadges) {
+      const k = o.g.items.filter(isDone).length;
+      const f = o.g.items.filter(isFail).length;
+      const marked = !o.g.items.some(isOpen);
+      o.n.textContent = k === o.g.items.length ? '✓ bitti' : marked && f ? `${f} kaldı` : `${k}/${o.g.items.length}`;
+      o.n.classList.toggle('all', k === o.g.items.length);
+      o.n.classList.toggle('warn', marked && f > 0);
+      o.li.classList.toggle('done', marked);
+      o.li.classList.toggle('now', o.g === currentTask());
+    }
     for (const c of counters) {
       const k = c.items.filter(isDone).length;
       const f = c.items.filter(isFail).length;
@@ -384,7 +431,9 @@
     toggleAll(li);
   });
   next.addEventListener('click', () => {
-    const li = items.find(isOpen) || items.find((x) => !isDone(x));
+    // İş sırası varsa önce şu anki işin bitmemiş maddesi; işler tek tek biter.
+    const g = tasks.length > 1 ? currentTask() : null;
+    const li = (g && (g.items.find(isOpen) || g.items.find((x) => !isDone(x)))) || items.find(isOpen) || items.find((x) => !isDone(x));
     if (!li) return;
     const det = li.closest('details');
     if (det) det.open = true;

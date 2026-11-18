@@ -202,6 +202,12 @@ Aynı anda tek rehber üretilir; ikincisi için ilkinin bitmesini bekle ya da **
 
 **Sen kimsin?** İlk açılışta (ve Ayarlar'da) rolünü, test ettiğin platformları ve takımının Jira panolarını seçersin. Liste "Takımım" ile bu panolara göre süzülür; rol ve platformlar rehber yazılırken Claude'a da söylenir. Tek platform seçtiysen kontrol listesi o platform için yazılır.
 
+### Epic'te işleri tek tek bitirmek
+
+Epic rehberinde **Test sırası** bölümü hangi işle başlayacağını ve nedenini söyler: test edilebilir olan, diğerlerinin önünü açan ve kritik olan önce; geliştirmede ya da bloklu olan sonda. Kontrol listesi de iş iş, aynı sırayla gelir.
+
+Rehberin sol sütununda **Şu anki iş** kartı sıradaki işi ve ilerlemesini gösterir; **Sıradaki kontrole git** o işin bitmemiş maddesine götürür. Bir işin bütün maddeleri işaretlenince (Geçti, Kaldı ya da Uygulanmaz) sıradaki işe geçilir; düzeltme bekleyen madde sırayı tutmaz, Test sırası listesinde "1 kaldı" olarak görünür.
+
 ### Rehbere sormak
 
 Rehberi okurken aklına takılanı araç çubuğundaki **Rehbere sor**'dan sorarsın; panel rehberin yanında açılır, rehber okunmaya devam eder.

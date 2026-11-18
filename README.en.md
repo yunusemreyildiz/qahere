@@ -204,6 +204,12 @@ One guide is generated at a time; wait for the first to finish or **cancel** it.
 
 **Who are you?** On first run (and in Settings) you pick your role, the platforms you test and your team's Jira boards. "Takımım" filters the list by those boards; your role and platforms are also passed to Claude when the guide is written. If you picked a single platform, the checklist is written for that platform.
 
+### Finishing an epic one issue at a time
+
+An epic guide has a **Test sırası** (Test order) section that tells you which issue to start with and why: what's testable, what unblocks the others and what's critical goes first; what's still in development or blocked goes last. The checklist follows the same order, issue by issue.
+
+The **Şu anki iş** (Current issue) card in the guide's left column shows the next issue and its progress; **Sıradaki kontrole git** (Go to next check) takes you to its next open item. Once every item of an issue is marked (Passed, Failed or N/A) you move on to the next one; a failed item waiting for a fix doesn't hold up the order and shows as "1 kaldı" (1 failed) in the Test order list.
+
 ### Asking the guide
 
 Anything you wonder about while reading, ask with **Rehbere sor** (Ask the guide) in the toolbar; the panel opens next to the guide so you keep reading.
