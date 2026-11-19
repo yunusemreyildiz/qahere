@@ -19,7 +19,7 @@ import { askGuide, clearChat, markBugbotFiled } from './lib/ask.js';
 import { notifySlackSelf, slackSelfMessage } from './lib/notify.js';
 import { parseMcpList, inspectConnector } from './lib/connectors.js';
 import { scanSources } from './lib/preflight.js';
-import { firebaseUser, listReleases, installedVersion, installRelease } from './lib/firebase.js';
+import { firebaseUser, listReleases, installedVersion, installRelease, buildsForKeys } from './lib/firebase.js';
 import { proposeUpdate, saveUpdatedVersion, opCount, autoCheck, isAutoRunning } from './lib/sync.js';
 import { screenshot, devices } from './lib/device.js';
 import { readFlow, saveFlow, draftFlow, startRun, getRun, publicRun, cancelRun, activeRun } from './lib/runner.js';
@@ -477,6 +477,10 @@ app.get('/api/firebase/android', wrap(async (req, res) => {
   if (!user.loggedIn) return res.json({ user, installed, error: 'Firebase\'e giriş yapılmamış. Terminalde bir kez "firebase login" çalıştır.' });
   try { res.json({ user, installed, ...(await listReleases()) }); }
   catch (e) { res.json({ user, installed, error: e.message }); }
+}));
+// İş anahtarları → Android/iOS'ta işin geldiği sürümler (sürüm notlarından).
+app.get('/api/firebase/builds', wrap(async (req, res) => {
+  res.json(await buildsForKeys(String(req.query.keys || '').split(',').map((s) => s.trim().toUpperCase())));
 }));
 app.post('/api/firebase/install', wrap(async (req, res) => {
   const device = String(req.body?.device || '');

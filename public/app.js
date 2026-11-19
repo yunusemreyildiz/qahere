@@ -834,6 +834,13 @@ function renderGuides(key, guides, selectedId) {
     if (msg.qa === 'run' && Number.isInteger(msg.c) && ['ios', 'android'].includes(msg.platform)) {
       return openRunSheet({ g, frame, c: msg.c, platform: msg.platform, item: String(msg.text || '').slice(0, 1500), section: String(msg.section || '').slice(0, 200) });
     }
+    if (msg.qa === 'taskKeys' && Array.isArray(msg.keys)) {
+      const keys = [...new Set([...msg.keys, g.key])].filter((k) => /^[A-Z][A-Z0-9]+-\d+$/.test(k)).slice(0, 60);
+      api(`/api/firebase/builds?keys=${encodeURIComponent(keys.join(','))}`).then((data) => {
+        if (data.platforms?.length) frame.contentWindow?.postMessage({ qa: 'builds', data: { ...data, guideKey: g.key } }, '*');
+      }).catch(() => {});
+      return;
+    }
     if (msg.qa === 'runGroup' && ['ios', 'android'].includes(msg.platform) && Array.isArray(msg.items)) {
       return openBatchRunSheet({ g, frame, platform: msg.platform, title: String(msg.title || '').slice(0, 200),
         items: msg.items.filter((x) => Number.isInteger(x?.c)).slice(0, 60).map((x) => ({ c: x.c, text: String(x.text || '').slice(0, 1500), section: String(x.section || '').slice(0, 200), state: String(x.state || '') })) });

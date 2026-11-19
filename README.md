@@ -222,6 +222,10 @@ Epic rehberinde **Test sırası** bölümü hangi işle başlayacağını ve ned
 
 Rehberin sol sütununda **Şu anki iş** kartı sıradaki işi ve ilerlemesini gösterir; **Sıradaki kontrole git** o işin bitmemiş maddesine götürür. Bir işin bütün maddeleri işaretlenince (Geçti, Kaldı ya da Uygulanmaz) sıradaki işe geçilir; düzeltme bekleyen madde sırayı tutmaz, Test sırası listesinde "1 kaldı" olarak görünür.
 
+### Hangi iş hangi sürümde?
+
+Firebase'e giriş yaptıysan (aşağıya bak) epic rehberi üretilirken her alt işin anahtarı Android ve iOS sürüm notlarında aranır; rehberin **Ortam hazırlığı → Paketler** bölümüne hangi işi test etmek için en az hangi sürüm gerektiği, **Test sırası**'na da henüz sürüme girmemiş işler yazılır. Rehberi açtığında iş başlıklarında, Test sırasında ve "Şu anki iş" kartında canlı sürüm etiketi görünür (ör. iOS 2.5.0 (412) · Android sürümde yok); rehberden sonra çıkan sürümler de buraya yansır. iOS sürümleri yalnızca gösterilir; App Distribution'daki iOS paketleri gerçek cihaz içindir, simülatöre kurulamaz.
+
 ### Bir işi simülatörde toplu koşmak
 
 Kontrol listesindeki her iş başlığının (ve Test sırası listesinin) yanında **▶ iOS / ▶ Android** düğmesi var. Basınca o işin maddeleri sırayla koşar: akışı olmayan maddeye Claude bir kez Maestro akışı yazar (kullanım hakkından düşer), koşuyu Maestro yapar (Claude kullanmaz). Her sonuç maddeye işlenir; kalan maddeler için ekran görüntüsüyle **Hata kaydı aç** düğmesi çıkar. Daha önce geçmiş maddeler istersen atlanır; **Durdur** ile istediğin an kesersin. Tek bir maddeyi koşmak için maddenin platform düğmesindeki menüden *emülatöründe koş…*'u seç.

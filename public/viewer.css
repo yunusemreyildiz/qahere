@@ -151,6 +151,14 @@ html.live .o-clear{color:var(--mute);border-top:1px solid var(--sep);border-radi
 html.live .pmi[aria-checked="true"]{font-weight:700}
 html.live .pmi[aria-checked="true"]::after{content:"•";margin-left:auto;color:var(--brand)}
 
+/* Firebase sürüm etiketleri */
+html.live .bld{display:inline-flex;flex-wrap:wrap;gap:6px;margin-left:10px;vertical-align:2px;font:600 11.5px/1 var(--sans)}
+html.live .bld-p{white-space:nowrap;display:inline-flex;align-items:center;gap:3px;padding:3px 7px;border-radius:99px;background:color-mix(in srgb,var(--ok) 12%,var(--bg));color:var(--ok)}
+html.live .bld-p.none{background:color-mix(in srgb,var(--warn) 12%,var(--bg));color:var(--warn)}
+html.live .bld-p svg{width:11px;height:11px}
+html.live .curtask .bld{margin:4px 0 0}
+html.live .bld-meter{margin:0 0 10px}
+
 /* İş başına toplu koşu düğmeleri */
 html.live .grun{display:inline-flex;gap:4px;margin-left:10px;vertical-align:2px}
 html.live .grun-b{display:inline-flex;align-items:center;gap:2px;height:22px;padding:0 6px;border:1px solid var(--ctl);border-radius:6px;background:var(--raise);color:var(--mute);font:600 11px/1 var(--sans);cursor:pointer}

@@ -247,7 +247,7 @@
 
   const KEY = /\b[A-Z][A-Z0-9]+-\d+\b/;
   const kontrolSec = sections.find((s) => s.k === 'kontrol');
-  const taskGroups = kontrolSec ? groupsOf(kontrolSec.el).filter((g) => KEY.test(g.title)).map((g) => ({ ...g, key: g.title.match(KEY)[0] })) : [];
+  const taskGroups = kontrolSec ? groupsOf(kontrolSec.el).filter((g) => KEY.test(g.title)).map((g) => ({ ...g, key: g.title.match(KEY)[0], keys: g.title.match(new RegExp(KEY.source, 'g')) })) : [];
   const orderEls = [...d.querySelectorAll('ol.order > li[data-key]')];
   const orderKeys = orderEls.map((li) => li.dataset.key);
   // Test sırası varsa o sırayla; yoksa kontrol listesindeki sırayla.
@@ -287,6 +287,40 @@
   const runBoxes = [];
   if (kontrolSec) for (const g of groupsOf(kontrolSec.el)) if (g.h3 && g.items.length) { const bx = runButtons(g); g.h3.append(bx); runBoxes.push(bx); }
   for (const o of orderBadges) { const bx = runButtons(o.g); o.li.append(bx); runBoxes.push(bx); }
+  // Firebase'deki sürümler: uygulama iş anahtarlarına göre gönderir; iş başlıklarında, Test sırasında ve kartta görünür.
+  const buildTargets = [...tasks.map((g) => ({ keys: g.keys, el: g.h3 })), ...orderBadges.map((o) => ({ keys: [o.li.dataset.key], el: o.li }))].filter((x) => x.el);
+  parent.postMessage({ qa: 'taskKeys', keys: [...new Set(tasks.flatMap((g) => g.keys))] }, '*');
+  let builds = null;
+  const buildChip = (keysIn) => {
+    if (!builds?.platforms?.length) return null;
+    const keys = [].concat(keysIn).filter(Boolean);
+    const box = make('span', 'bld');
+    const shown = builds.platforms.filter((x) => platforms.includes(x));
+    // Başlıkta birden fazla iş olabilir (ör. iOS işi / Android işi): her platform için o platformda bulunan anahtar.
+    const findIn = (p) => keys.map((k) => ({ k, b: builds[p]?.[k] })).find((x) => x.b);
+    // Tek anahtarlı başlıkta iş platforma özel olabilir: bulunduğu platform gösterilir, diğeri için uyarı verilmez.
+    // Birden fazla anahtar varsa (ör. "iOS işi / Android işi") bulunamayan platform "sürümde yok" diye gösterilir.
+    const anyFound = keys.length < 2 && shown.some((p) => findIn(p));
+    const key = keys.join(' / ');
+    for (const p of shown) {
+      const hit = findIn(p);
+      const b = hit?.b;
+      if (!b && anyFound) continue;
+      const s = make('span', `bld-p${b ? '' : ' none'}`);
+      s.innerHTML = PL[p].icon;
+      s.append(b ? `${b.latest.version} (${b.latest.build})` : 'sürümde yok');
+      s.title = b ? `${PL[p].label}: ${hit.k} ilk kez ${b.first.version} (${b.first.build}) ile geldi; en son ${b.latest.version} (${b.latest.build})` : `${PL[p].label}: ${key} henüz bir Firebase sürümünün notunda yok`;
+      box.append(s);
+    }
+    return box.children.length ? box : null;
+  };
+  const paintBuilds = () => {
+    d.querySelectorAll('.bld').forEach((x) => x.remove());
+    for (const t of buildTargets) { const c = buildChip(t.keys); if (c) t.el.append(c); }
+    if (!tasks.length && builds?.guideKey) { const c = buildChip(builds.guideKey); if (c) { c.classList.add('bld-meter'); meter.insertBefore(c, plRow); } }
+  };
+  addEventListener('message', (e) => { if (e.source === parent && e.data?.qa === 'builds' && e.data.data) { builds = e.data.data; paintBuilds(); paint(); } });
+
   const paintRunBoxes = () => runBoxes.forEach((bx) => bx.querySelectorAll('button').forEach((b) => { b.hidden = !platforms.includes(b.dataset.p); }));
   curBtn.addEventListener('click', () => { const g = currentTask(); if (g) go(g.h3 || g.items[0]); });
 
@@ -309,6 +343,8 @@
       const failedAll = items.filter(isFail).length;
       curBtn.replaceChildren(make('span', 'ct-l', g ? `Şu anki iş · ${i + 1}/${tasks.length}` : failedAll ? `${tasks.length} iş test edildi · ${failedAll} madde düzeltme bekliyor` : `${tasks.length} işin hepsi bitti`),
         ...(g ? [make('span', 'ct-t', g.title), make('span', 'ct-n', `${g.items.filter(isDone).length}/${g.items.length} kontrol`)] : []));
+      const chip = g && buildChip(g.keys || g.key);
+      if (chip) curBtn.append(chip);
     }
     for (const o of orderBadges) {
       const k = o.g.items.filter(isDone).length;

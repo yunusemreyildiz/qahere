@@ -224,6 +224,10 @@ An epic guide has a **Test sırası** (Test order) section that tells you which 
 
 The **Şu anki iş** (Current issue) card in the guide's left column shows the next issue and its progress; **Sıradaki kontrole git** (Go to next check) takes you to its next open item. Once every item of an issue is marked (Passed, Failed or N/A) you move on to the next one; a failed item waiting for a fix doesn't hold up the order and shows as "1 kaldı" (1 failed) in the Test order list.
 
+### Which issue is in which build?
+
+If you've signed in to Firebase (see below), each sub-issue key of an epic is looked up in the Android and iOS release notes when the guide is generated; **Ortam hazırlığı → Paketler** (Environment setup → Builds) states the minimum build needed for each issue, and **Test sırası** (Test order) lists issues that aren't in a build yet. When you open the guide, live build labels appear on issue headings, the Test order list and the "Current issue" card (e.g. iOS 2.5.0 (412) · Android not in a build); builds released after the guide show up too. iOS builds are only shown: App Distribution iOS packages are for real devices and can't be installed on a simulator.
+
 ### Running an issue on a simulator in one go
 
 Each issue heading in the checklist (and the Test order list) has **▶ iOS / ▶ Android** buttons. Press one and that issue's items run one after another: for items without a flow, Claude writes a Maestro flow once (uses some of your usage), and Maestro runs them (no Claude). Each result is recorded on the item; failed items get a **Hata kaydı aç** (File a bug) button with the screenshot. Items that already passed can be skipped; **Durdur** (Stop) stops at any time. To run a single item, pick *run on simulator/emulator…* from the item's platform button menu.
