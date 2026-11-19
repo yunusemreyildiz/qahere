@@ -65,6 +65,12 @@ html.live .kpis{border:0;gap:10px;grid-template-columns:repeat(auto-fit,minmax(1
 html.live .kpi{background:var(--rail);border:0;border-radius:var(--rad);padding:12px 14px}
 html.live .kpi b{font-family:var(--sans);font-size:24px;line-height:1.1;font-weight:700;color:var(--ink)}
 
+/* Güncellemeden gelenler */
+html.live .upd-tag{display:inline-block;margin-left:6px;font:600 11px/1.5 var(--sans);color:var(--warn);background:color-mix(in srgb,var(--warn) 12%,var(--bg));border-radius:99px;padding:0 7px;vertical-align:1px;text-decoration:none}
+html.live .upd-why{display:inline-block;width:100%;font-size:12.5px;color:var(--mute)}
+html.live .chk li[data-obsolete]{color:var(--faint)}
+html.live .box.upd{background:color-mix(in srgb,var(--warn) 9%,var(--bg))}
+
 /* Mock yanıtı */
 html.live pre.mock{font-size:13px;background:var(--rail);border:0;border-left:3px solid var(--brand);border-radius:8px;padding:12px 14px;max-width:72ch}
 html.live h4{font-size:14px;margin:18px 0 4px}
@@ -144,6 +150,13 @@ html.live .o-fail .pmk{background:color-mix(in srgb,var(--bad) 12%,var(--bg));co
 html.live .o-clear{color:var(--mute);border-top:1px solid var(--sep);border-radius:0 0 7px 7px;margin-top:3px}
 html.live .pmi[aria-checked="true"]{font-weight:700}
 html.live .pmi[aria-checked="true"]::after{content:"•";margin-left:auto;color:var(--brand)}
+
+/* İş başına toplu koşu düğmeleri */
+html.live .grun{display:inline-flex;gap:4px;margin-left:10px;vertical-align:2px}
+html.live .grun-b{display:inline-flex;align-items:center;gap:2px;height:22px;padding:0 6px;border:1px solid var(--ctl);border-radius:6px;background:var(--raise);color:var(--mute);font:600 11px/1 var(--sans);cursor:pointer}
+html.live .grun-b[hidden]{display:none}
+html.live .grun-b svg{width:12px;height:12px}
+html.live .grun-b:hover{border-color:var(--brand);color:var(--brand-ink)}
 
 /* Şu anki iş (epic) ve Test sırası listesi */
 html.live .curtask{display:grid;gap:1px;width:100%;text-align:left;border:0;border-radius:8px;background:var(--brand-soft);padding:8px 10px;margin:0 0 12px;cursor:pointer;font:inherit}

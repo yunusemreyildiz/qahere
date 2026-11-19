@@ -172,11 +172,11 @@ function draftFrom(cfg) {
     projects: [...cfg.projects], sources: { ...cfg.sources }, model: cfg.model, accent: cfg.accent,
     bug: JSON.parse(JSON.stringify(cfg.bug || {})), run: JSON.parse(JSON.stringify(cfg.run || { ios: {}, android: {} })),
     profile: JSON.parse(JSON.stringify(cfg.profile || { role: '', platforms: [], boards: [] })),
-    connectors: JSON.parse(JSON.stringify(cfg.connectors || {})) };
+    connectors: JSON.parse(JSON.stringify(cfg.connectors || {})), syncEvery: cfg.syncEvery ?? 24 };
 }
 
 async function saveDraft(d, extra = {}) {
-  const body = { workspace: d.workspace, jiraBaseUrl: d.jiraBaseUrl, jiraEmail: d.jiraEmail, projects: d.projects, sources: d.sources, model: d.model, accent: d.accent, bug: d.bug, run: d.run, profile: d.profile, connectors: d.connectors, ...extra };
+  const body = { workspace: d.workspace, jiraBaseUrl: d.jiraBaseUrl, jiraEmail: d.jiraEmail, projects: d.projects, sources: d.sources, model: d.model, accent: d.accent, bug: d.bug, run: d.run, profile: d.profile, connectors: d.connectors, syncEvery: d.syncEvery, ...extra };
   if (d.jiraApiToken) body.jiraApiToken = d.jiraApiToken;
   applyConfig(await send('/api/settings', 'PUT', body));
 }
@@ -244,7 +244,18 @@ function sourcesSection(d) {
     h('div', { class: 'group-foot' }, 'Bu kaynaklara Claude hesabındaki bağlantılarla ulaşılır. Açmak için claude.ai → Ayarlar → Bağlayıcılar bölümünden ilgili uygulamayı bağla. Araç yalnızca senin görebildiğin içeriği okur; hiçbir yere yazmaz.'),
     h('div', { class: 'group' }, h('div', { class: 'row' }, h('div', { class: 'grow' }, h('span', {}, 'Seçtiklerinin Claude Code\'da bağlı olup olmadığını gör. Yarım dakika sürebilir.')), btn)),
     otherConnectors(d),
+    syncEverySection(d),
   );
+}
+
+const SYNC_EVERY = [[0, 'Kapalı'], [6, '6 saat'], [24, '1 gün'], [72, '3 gün']];
+function syncEverySection(d) {
+  const seg = h('div', { class: 'seg mini' });
+  const paint = () => seg.replaceChildren(...SYNC_EVERY.map(([v, n]) => h('button', { type: 'button', class: d.syncEvery === v ? 'active' : '', onclick: () => { d.syncEvery = v; paint(); } }, n)));
+  paint();
+  return h('div', {}, h('div', { class: 'group-title' }, 'Rehberleri güncel tut'),
+    h('div', { class: 'group' }, h('div', { class: 'row' }, h('div', { class: 'grow' }, h('b', {}, 'Rehber açılınca yeni yazılanlara bak'),
+      h('span', {}, 'Son denetimden bu kadar süre geçtiyse Jira ve Slack arka planda taranır; bulunanlar "Güncelleme var" olarak bekler, sen onaylamadan rehbere eklenmez. Her denetim kullanım hakkından düşer.')), seg)));
 }
 
 /**
@@ -823,6 +834,10 @@ function renderGuides(key, guides, selectedId) {
     if (msg.qa === 'run' && Number.isInteger(msg.c) && ['ios', 'android'].includes(msg.platform)) {
       return openRunSheet({ g, frame, c: msg.c, platform: msg.platform, item: String(msg.text || '').slice(0, 1500), section: String(msg.section || '').slice(0, 200) });
     }
+    if (msg.qa === 'runGroup' && ['ios', 'android'].includes(msg.platform) && Array.isArray(msg.items)) {
+      return openBatchRunSheet({ g, frame, platform: msg.platform, title: String(msg.title || '').slice(0, 200),
+        items: msg.items.filter((x) => Number.isInteger(x?.c)).slice(0, 60).map((x) => ({ c: x.c, text: String(x.text || '').slice(0, 1500), section: String(x.section || '').slice(0, 200), state: String(x.state || '') })) });
+    }
     if (msg.qa === 'mockblock' && typeof msg.text === 'string') {
       return openMockSheet({ g, c: null, item: '', onChange: paintMocks, preset: parseMockBlock(String(msg.title || ''), msg.text) });
     }
@@ -870,6 +885,9 @@ function renderGuides(key, guides, selectedId) {
   // Araç çubuğunda iki düğme, aynı panelin iki sekmesi: açık sekmenin düğmesi panel kapatır.
   const panelBtn = (t, label) => h('button', { class: 'btn plain sm askbtn', type: 'button', onclick: () => (ask.isOpen() && ask.tab() === t ? ask.close() : ask.open(t)) }, label);
   const askBtn = panelBtn('ask', 'Rehbere sor');
+  const syncBtn = h('button', { class: 'btn plain sm', type: 'button', title: `Rehberden sonra Jira'da ve Slack'te yazılanları bul, rehbere ekle${g.syncedAt ? ` (son denetim: ${fmtDate(g.syncedAt)})` : ''}`,
+    onclick: () => (g.pending ? showSyncPreview(g, { ops: g.pending.ops, count: g.pending.count, pending: true }) : openSyncSheet(g)) }, 'Güncellemeleri denetle');
+  watchAutoSync(g, syncBtn);
   const botBtn = panelBtn('bugbot', 'Bugbot');
   ask.onChange = () => { for (const [b, t] of [[askBtn, 'ask'], [botBtn, 'bugbot']]) b.setAttribute('aria-expanded', String(ask.isOpen() && ask.tab() === t)); };
   ask.onChange();
@@ -880,12 +898,109 @@ function renderGuides(key, guides, selectedId) {
       h('div', { class: 'gtitle' }, h('h2', {}, `${fmtDate(g.createdAt)} tarihli rehber`), h('div', { class: 'sub' }, stats)),
       progress,
       h('div', { class: 'acts' },
-        version, kidsBtn, mocksBtn, askBtn, botBtn, regen,
+        version, kidsBtn, mocksBtn, syncBtn, askBtn, botBtn, regen,
         h('a', { class: 'btn plain sm', href: `${base}.html`, target: '_blank', rel: 'noopener', title: 'Tam rapor, düz sırayla' }, 'Yeni sekmede aç'),
         h('a', { class: 'btn sm', href: `${base}.pdf` }, 'PDF indir'),
         del)),
     ...denialNotes(g),
     h('div', { class: 'gbody' }, frame, ask.el));
+}
+
+// ---- Rehberi güncelle: rehberden sonra yazılanları bul, önizle, onaylanırsa yeni sürüm ----
+
+/** Rehber açılınca: ayardaki süre dolduysa sunucu arka planda denetler; bulunan öneri düğmede "Güncelleme var" olarak bekler. */
+function watchAutoSync(g, btn) {
+  const paint = (running) => {
+    btn.classList.toggle('has-upd', Boolean(g.pending));
+    btn.textContent = g.pending ? `Güncelleme var (${g.pending.count})` : running ? 'Güncellemelere bakılıyor…' : 'Güncellemeleri denetle';
+    if (g.pending) btn.title = g.pending.summary;
+  };
+  paint(false);
+  if (g.pending) return;
+  const shown = () => state.current === g.key && document.body.contains(btn);
+  send(`/api/guides/${g.key}/${g.id}/sync/auto`, 'POST', {}).then(async (r) => {
+    if (r.status === 'pending') { g.pending = r.pending; return paint(false); }
+    if (r.status !== 'started' && r.status !== 'running') return;
+    paint(true);
+    for (let i = 0; i < 40 && shown(); i++) {
+      await new Promise((ok) => setTimeout(ok, 15_000));
+      const s = await api(`/api/guides/${g.key}/${g.id}/sync/auto`).catch(() => null);
+      if (!s) continue;
+      if (s.pending) g.pending = s.pending;
+      if (!s.running) break;
+    }
+    if (shown()) paint(false);
+  }).catch(() => {});
+}
+function openSyncSheet(g) {
+  const log = h('ul', { class: 'log' });
+  const body = h('div', {}, h('p', {}, `Rehber ${fmtDate(g.syncedAt || g.createdAt)} itibarıyla hazır. Bu tarihten sonra Jira'da ve Slack'te yazılanlara bakılıyor; rehber yeniden üretilmez, yalnızca değişenler eklenir.`), log);
+  const ctrl = new AbortController();
+  const cancel = h('button', { class: 'btn link sm', type: 'button', onclick: () => { ctrl.abort(); closeSheet(); } }, 'Vazgeç');
+  openSheet('Güncellemeleri denetle', body, [cancel]);
+  $('#sheet').addEventListener('close', () => ctrl.abort(), { once: true });
+  const add = (t) => { log.append(h('li', {}, t)); log.scrollTop = log.scrollHeight; };
+  (async () => {
+    try {
+      const res = await fetch(`/api/guides/${g.key}/${g.id}/sync`, { method: 'POST', signal: ctrl.signal, headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `Sunucu ${res.status} döndü.`);
+      const reader = res.body.getReader();
+      const dec = new TextDecoder();
+      let buf = '';
+      let result = null;
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        let i;
+        while ((i = buf.indexOf('\n')) !== -1) {
+          const line = buf.slice(0, i); buf = buf.slice(i + 1);
+          let ev; try { ev = JSON.parse(line); } catch { continue; }
+          if (ev.type === 'step') add(ev.message);
+          else if (ev.type === 'error') throw new Error(ev.message);
+          else if (ev.type === 'done') result = ev;
+        }
+      }
+      if (!result) throw new Error('Yanıt yarım kaldı.');
+      showSyncPreview(g, result);
+    } catch (e) {
+      if (ctrl.signal.aborted) return;
+      body.append(h('div', { class: 'msg bad' }, e.message));
+    }
+  })();
+}
+
+function showSyncPreview(g, r) {
+  const o = r.ops;
+  const textOf = (c) => `${c}. madde`;
+  const part = (title, items) => (items.length ? [h('div', { class: 'group-title' }, title), h('ul', { class: 'sync-list' }, ...items)] : []);
+  const apply = h('button', { class: 'btn sm', type: 'button', onclick: async () => {
+    apply.disabled = true; apply.textContent = 'Ekleniyor…';
+    try {
+      const x = await send(`/api/guides/${g.key}/${g.id}/sync/apply`, 'POST', r.pending ? { pending: true } : { token: r.token });
+      closeSheet();
+      g.pending = null;
+      if (x.updated) openIssue(g.key, x.guide.id);
+    } catch (e) { apply.disabled = false; apply.textContent = 'Rehbere ekle'; msg.replaceChildren(h('div', { class: 'msg bad' }, e.message)); }
+  } }, r.count ? 'Rehbere ekle' : 'Tamam');
+  const msg = h('div', {});
+  openSheet(r.count ? 'Rehbere eklenecekler' : 'Yeni bir şey yok', h('div', {},
+    h('p', {}, o.summary),
+    ...part('Güncelleme notları', o.notes.map((x) => h('li', {}, x.text, x.source ? [' ', h('a', { href: x.source, target: '_blank', rel: 'noopener' }, 'kaynak')] : []))),
+    ...part('Yeni kontrol maddeleri', o.add_checks.map((x) => h('li', {}, x.text, x.group ? h('span', { class: 'hint' }, ` · ${x.group}`) : null))),
+    ...part('Değişen maddeler (işareti sıfırlanır)', o.change_checks.map((x) => h('li', {}, h('b', {}, `${textOf(x.c + 1)}: `), x.text, x.reason ? h('span', { class: 'hint' }, ` · ${x.reason}`) : null))),
+    ...part('Geçersiz kalan maddeler', o.obsolete_checks.map((x) => h('li', {}, h('b', {}, `${textOf(x.c + 1)}: `), x.reason))),
+    ...part('Yeni çelişkiler', o.add_conflicts.map((x) => h('li', {}, x.text))),
+    r.count ? h('p', { class: 'hint' }, 'Eklenince rehberin yeni bir sürümü oluşur; işaretlerin, hata kayıtların ve sohbetler taşınır, eski sürüm de durur.') : h('p', { class: 'hint' }, 'Denetim zamanı kaydedilir; bir sonraki denetim buradan devam eder.'),
+    r.pending ? h('p', { class: 'hint' }, 'Bu öneri rehber açılırken arka planda yapılan denetimden geldi.') : null,
+    h('p', { class: 'hint' }, [r.stats?.jiraComments ? `${r.stats.jiraComments} yeni Jira yorumu` : null, r.stats?.tools != null ? `${r.stats.tools} kaynak sorgusu` : null, r.stats?.durationMs ? `${Math.round(r.stats.durationMs / 1000)} sn` : null].filter(Boolean).join(' · ')),
+    msg),
+  [h('button', { class: 'btn link sm', type: 'button', onclick: closeSheet }, r.pending ? 'Sonra' : 'Vazgeç'),
+    r.pending ? h('button', { class: 'btn plain sm', type: 'button', title: 'Bu öneriyi rehbere ekleme; bir sonraki denetim buradan devam eder', onclick: async () => {
+      await api(`/api/guides/${g.key}/${g.id}/sync/pending`, { method: 'DELETE' }).catch(() => {});
+      g.pending = null; closeSheet(); openIssue(g.key, g.id);
+    } }, 'Ekleme') : null,
+    apply]);
 }
 
 // ---- Rehbere sor: rehberin yanında açılan soru-yanıt paneli ----
@@ -1566,7 +1681,11 @@ function openRunSheet({ g, frame, c, platform, item, section }) {
   const yaml = h('textarea', { class: 'input mono', rows: '14', spellcheck: 'false', placeholder: 'appId: com.sirketin.uygulama\n---\n- launchApp\n- tapOn:\n    id: "…"\n- assertVisible: "…"' });
   let saved = '';
   const dev = h('span', { class: 'hint' }, 'Cihaza bakılıyor…');
-  api('/api/devices').then((x) => { dev.textContent = x[platform] ? `Cihaz: ${x[platform].name}` : (platform === 'ios' ? 'Açık iOS simülatörü yok.' : 'Bağlı Android cihaz yok.'); }).catch(() => {});
+  const buildSlot = h('div', {});
+  api('/api/devices').then((x) => {
+    dev.textContent = x[platform] ? `Cihaz: ${x[platform].name}` : (platform === 'ios' ? 'Açık iOS simülatörü yok.' : 'Bağlı Android cihaz yok.');
+    if (platform === 'android' && x.android) buildSlot.replaceChildren(androidBuildRow(x.android.id, null, String(section).match(/\b[A-Z][A-Z0-9]+-\d+\b/g) || [g.key]));
+  }).catch(() => {});
   const note = h('div', {});
   const out = h('div', {});
   const setNote = (cls, text) => note.replaceChildren(...(text ? [h('div', { class: `msg ${cls}` }, text)] : []));
@@ -1632,6 +1751,7 @@ function openRunSheet({ g, frame, c, platform, item, section }) {
   openSheet(platform === 'ios' ? 'iOS simülatöründe koş' : 'Android emülatöründe koş', h('div', { class: 'bugform' },
     h('p', { class: 'bug-item run' }, h('span', {}, section || 'Test maddesi'), item),
     h('div', { class: 'between' }, h('div', { class: 'grow' }, dev), write),
+    buildSlot,
     h('label', { class: 'f' }, 'Maestro akışı', yaml),
     h('p', { class: 'hint' }, 'Akış bu madde ve platform için saklanır; sonraki koşular Claude kullanmaz. Uygulama kimliği ve ön akış Ayarlar → Simülatörde koşu bölümünden gelir.'),
     note, out,
@@ -1642,6 +1762,181 @@ function openRunSheet({ g, frame, c, platform, item, section }) {
     if (!r.yaml) setNote('', state.config.run?.[platform]?.appId ? 'Bu madde için henüz akış yok. "Claude yazsın" rehberdeki otomasyon kimliklerinden kısa bir akış yazar; ya da kendin yaz.'
       : `Önce Ayarlar → Simülatörde koşu bölümünde ${platform === 'ios' ? 'iOS bundle id' : 'Android paket adı'} gir.`);
   }).catch((e) => setNote('bad', e.message));
+}
+
+/**
+ * Android emülatöründe kurulu sürüm + Firebase App Distribution'dan sürüm seçip kurma. Koşudan önce doğru sürüm.
+ * onChange(installed) kurulum bitince çağrılır.
+ */
+function androidBuildRow(deviceId, onChange, keys = []) {
+  const box = h('div', { class: 'buildrow' }, h('span', { class: 'hint' }, 'Kurulu sürüme ve Firebase\'e bakılıyor…'));
+  const fmt = (v) => (v ? `${v.version || '?'}${v.build ? ` (${v.build})` : ''}` : 'kurulu değil');
+  const paint = (d) => {
+    const inst = h('span', {}, h('b', {}, 'Kurulu: '), fmt(d.installed));
+    if (d.error) return box.replaceChildren(inst, h('span', { class: 'hint' }, ` · ${d.error}`));
+    const rels = d.releases || [];
+    if (!rels.length) return box.replaceChildren(inst, h('span', { class: 'hint' }, ' · Firebase\'de sürüm yok.'));
+    // Sürüm notlarında iş anahtarı geçiyor mu? (ör. "PROJ-123 - Fix …") İşi içeren ilk sürüm = en küçük build.
+    const want = [...new Set(keys.filter(Boolean))];
+    const has = (r, k) => new RegExp(`\\b${k.replace(/[-]/g, '\\-')}\\b`).test(r.notes);
+    const matches = want.map((k) => {
+      const hits = rels.filter((r) => has(r, k));
+      const first = hits.reduce((a, r) => (!a || Number(r.build) < Number(a.build) ? r : a), null);
+      // Aynı sürüm hattında (versionName) build büyükse içerir; farklı hatta (ör. 2.4.1 hotfix ↔ 2.5.0) yalnızca
+      // notlarında iş geçen sürümün kendisi kuruluysa kesin; değilse "belli değil".
+      const inst = d.installed;
+      const exact = Boolean(inst && hits.some((r) => String(r.build) === String(inst.build)));
+      const sameLine = Boolean(first && inst && hits.some((r) => r.version === inst.version && Number(inst.build) >= Number(r.build)));
+      const otherLine = Boolean(first && inst && !exact && !sameLine && !hits.some((r) => r.version === inst.version));
+      return { k, first, inInstalled: exact || sameLine, unsure: otherLine && Number(inst.build) >= Number(first.build) };
+    });
+    const sel = h('select', { class: 'ver', 'aria-label': 'Firebase sürümü' }, ...rels.map((r, i) => h('option', { value: r.name },
+      `${r.version} (${r.build}) · ${fmtDate(r.createdAt)}${i === 0 ? ' · en yeni' : ''}${want.some((k) => has(r, k)) ? ` · ${want.filter((k) => has(r, k)).join(', ')}` : ''}`)));
+    const same = (r) => d.installed && String(d.installed.build) === String(r.build);
+    const note = h('div', {});
+    const btn = h('button', { class: 'btn sm', type: 'button' });
+    const paintBtn = () => {
+      const r = rels.find((x) => x.name === sel.value);
+      btn.textContent = same(r) ? 'Yeniden kur' : 'Bu sürümü kur';
+      btn.classList.toggle('plain', same(r));
+      note.replaceChildren(...(r?.notes ? [h('div', { class: 'hint relnotes' }, r.notes)] : []));
+    };
+    sel.onchange = paintBtn;
+    btn.onclick = async (ev, allowUninstall = false) => {
+      btn.disabled = true; sel.disabled = true;
+      const st = h('span', { class: 'hint' }, 'Başlıyor…');
+      note.replaceChildren(st);
+      try {
+        const res = await fetch('/api/firebase/install', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ release: sel.value, device: deviceId, allowUninstall }) });
+        const reader = res.body.getReader();
+        const dec = new TextDecoder();
+        let buf = '';
+        let last = null;
+        for (;;) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buf += dec.decode(value, { stream: true });
+          let i;
+          while ((i = buf.indexOf('\n')) !== -1) {
+            const line = buf.slice(0, i); buf = buf.slice(i + 1);
+            let e; try { e = JSON.parse(line); } catch { continue; }
+            if (e.type === 'step') st.textContent = `${e.message}…`;
+            else last = e;
+          }
+        }
+        if (last?.type === 'done') { d.installed = last.installed; onChange?.(last.installed); paint(d); box.append(h('div', { class: 'msg ok' }, `${last.version} (${last.build}) kuruldu.`)); return; }
+        if (last?.needsUninstall && confirm(`${last.message}\n\nKaldırıp kurulsun mu?`)) return btn.onclick(ev, true);
+        note.replaceChildren(h('div', { class: 'msg bad' }, last?.message || 'Kurulum tamamlanamadı.'));
+      } catch (e) { note.replaceChildren(h('div', { class: 'msg bad' }, e.message)); }
+      btn.disabled = false; sel.disabled = false;
+    };
+    paintBtn();
+    const latest = rels[0];
+    const keyNotes = matches.map((m) => (!m.first
+      ? h('div', { class: 'msg warn' }, `${m.k} son ${rels.length} Firebase sürümünün notlarında geçmiyor; düzeltmesi henüz bir sürüme girmemiş olabilir.`)
+      : m.inInstalled
+        ? h('div', { class: 'msg ok' }, `${m.k} ilk kez ${m.first.version} (${m.first.build}) ile geldi; emülatördeki sürüm bunu içeriyor.`)
+        : m.unsure
+          ? h('div', { class: 'msg warn' }, `${m.k} ${m.first.version} (${m.first.build}) ile geldi; emülatördeki ${d.installed.version} farklı bir sürüm hattı, düzeltmeyi içerip içermediği belli değil. Emin olmak için ${m.first.version} sürümünü kur.`)
+        : h('div', { class: 'msg warn' }, `${m.k} ilk kez ${m.first.version} (${m.first.build}) ile geldi; emülatördeki sürüm ${d.installed ? 'bunu içermiyor' : 'yok'}. Testten önce kur.`)));
+    // İşi içermeyen bir sürüm kuruluysa en yeni sürüm hazır seçilir.
+    // İşi içermeyen ya da belirsiz bir sürüm kuruluysa: işin geçtiği en yeni sürüm hazır seçilir.
+    const need = matches.find((m) => m.first && !m.inInstalled);
+    if (need) { const best = rels.find((r) => has(r, need.k)) || latest; sel.value = best.name; paintBtn(); }
+    box.replaceChildren(...[h('div', { class: 'buildline' }, inst, sel, btn),
+      ...keyNotes,
+      !same(latest) && d.installed && !keyNotes.length ? h('div', { class: 'msg warn' }, `Emülatördeki sürüm Firebase'deki en yeni sürüm değil (${latest.version} (${latest.build})). Testten önce kurmayı düşün.`) : null,
+      !d.installed ? h('div', { class: 'msg warn' }, 'Uygulama emülatörde kurulu değil; koşmadan önce kur.') : null,
+      note].filter(Boolean));
+  };
+  api(`/api/firebase/android?device=${encodeURIComponent(deviceId)}`).then(paint).catch((e) => paint({ error: e.message }));
+  return box;
+}
+
+/**
+ * İş (alt başlık) başına toplu koşu: maddeler sırayla. Akışı olmayan maddeye Claude bir kez akış yazar (kullanım hakkı),
+ * koşuyu Maestro yapar (Claude'suz). Her sonuç maddeye işlenir; kalanlardan tek tıkla hata kaydı açılır.
+ */
+function openBatchRunSheet({ g, frame, platform, title, items }) {
+  const PLN = platform === 'ios' ? 'iOS' : 'Android';
+  const appId = state.config.run?.[platform]?.appId;
+  const ids = (c) => ({ key: g.key, guideId: g.id, c, platform });
+  const skipDone = h('input', { type: 'checkbox', checked: true });
+  const list = h('ol', { class: 'batch' });
+  const rows = new Map();
+  const ICON = { wait: '·', draft: '✎', run: '▶', pass: '✓', fail: '✕', skip: '–', err: '!' };
+  const setRow = (c, st, note) => { const r = rows.get(c); r.dataset.st = st; r.firstChild.textContent = ICON[st] || '·'; r.lastChild.textContent = note || ''; };
+  for (const it of items) {
+    const li = h('li', { 'data-st': 'wait' }, h('span', { class: 'bi' }, '·'), h('span', { class: 'bt' }, it.text), h('span', { class: 'bn' }, it.state === 'pass' ? 'daha önce geçti' : it.state === 'fail' ? 'daha önce kaldı' : ''));
+    rows.set(it.c, li); list.append(li);
+  }
+  const info = h('div', {});
+  const out = h('div', {});
+  let stop = false;
+  let current = null;
+  const startBtn = h('button', { class: 'btn sm', type: 'button', disabled: true }, 'Koşmaya başla');
+  const stopBtn = h('button', { class: 'btn plain sm', type: 'button', hidden: true, onclick: () => { stop = true; if (current) send(`/api/runs/${current}/cancel`, 'POST').catch(() => {}); stopBtn.disabled = true; stopBtn.textContent = 'Durduruluyor…'; } }, 'Durdur');
+
+  // Ön kontrol: cihaz, uygulama kimliği, akışı olmayan madde sayısı.
+  (async () => {
+    if (!appId) return info.replaceChildren(h('div', { class: 'msg bad' }, `Önce Ayarlar → Simülatörde koşu bölümünde ${platform === 'ios' ? 'iOS bundle id' : 'Android paket adı'} gir.`));
+    const dev = (await api('/api/devices').catch(() => ({})))[platform];
+    if (!dev) return info.replaceChildren(h('div', { class: 'msg bad' }, platform === 'ios' ? 'Açık bir iOS simülatörü yok. Simülatörü açıp pencereyi yeniden aç.' : 'Bağlı bir Android emülatörü ya da cihazı yok. Emülatörü açıp pencereyi yeniden aç.'));
+    const flows = await Promise.all(items.map((it) => api(`/api/flows?key=${encodeURIComponent(g.key)}&guideId=${encodeURIComponent(g.id)}&c=${it.c}&platform=${platform}`).then((r) => Boolean(r.yaml)).catch(() => false)));
+    items.forEach((it, i) => { it.hasFlow = flows[i]; });
+    const missing = items.filter((it) => !it.hasFlow).length;
+    const build = platform === 'android' ? androidBuildRow(dev.id, null, title.match(/\b[A-Z][A-Z0-9]+-\d+\b/g) || [g.key]) : null;
+    info.replaceChildren(...(build ? [build] : []), h('p', { class: 'hint' }, `Cihaz: ${dev.name}. ${items.length} madde. `,
+      missing ? `${missing} maddenin akışı yok; Claude onları bir kez yazacak (kullanım hakkından düşer, sonraki koşular Claude kullanmaz).` : 'Bütün maddelerin akışı hazır; koşu Claude kullanmaz.'),
+      h('p', { class: 'hint' }, 'Akışlar gerçek uygulamada çalışır. Gönderme, ödeme gibi geri alınamayan adım içeren maddelerin akışını önce maddenin kendi penceresinden gözden geçir.'));
+    startBtn.disabled = false;
+  })();
+
+  startBtn.onclick = async () => {
+    startBtn.hidden = true; stopBtn.hidden = false; skipDone.disabled = true;
+    const tally = { pass: 0, fail: 0, skip: 0, err: 0 };
+    const failed = [];
+    for (const it of items) {
+      if (stop) break;
+      if (skipDone.checked && it.state === 'pass') { setRow(it.c, 'skip', 'daha önce geçti, atlandı'); tally.skip++; continue; }
+      rows.get(it.c).scrollIntoView({ block: 'nearest' });
+      try {
+        if (!it.hasFlow) {
+          setRow(it.c, 'draft', 'Claude akışı yazıyor…');
+          const d = await send('/api/flows/draft', 'POST', { ...ids(it.c), item: it.text, section: it.section });
+          it.hasFlow = true;
+          if (d.syntaxError) { setRow(it.c, 'err', 'Akışta sözdizimi hatası; maddenin penceresinden düzelt'); tally.err++; continue; }
+        }
+        if (stop) break;
+        setRow(it.c, 'run', `${PLN} üzerinde koşuyor…`);
+        let job = await send('/api/runs', 'POST', ids(it.c));
+        current = job.id;
+        while (job.status === 'running') {
+          await new Promise((r) => setTimeout(r, 1500));
+          try { job = await api(`/api/runs/${job.id}?from=999999`); } catch { /* yeniden dene */ }
+        }
+        current = null;
+        const secs = Math.round((job.endedAt - job.startedAt) / 1000);
+        if (job.status === 'pass') { frame.contentWindow?.postMessage({ qa: 'set', c: it.c, platform, value: 'pass' }, '*'); setRow(it.c, 'pass', `geçti · ${secs} sn`); tally.pass++; }
+        else if (job.status === 'fail') {
+          frame.contentWindow?.postMessage({ qa: 'set', c: it.c, platform, value: 'fail' }, '*');
+          setRow(it.c, 'fail', `kaldı · ${secs} sn`); tally.fail++; failed.push({ it, job });
+        } else { setRow(it.c, 'err', job.message || 'koşu tamamlanamadı'); tally.err++; }
+      } catch (e) { setRow(it.c, 'err', e.message); tally.err++; }
+    }
+    for (const it of items) if (rows.get(it.c).dataset.st === 'wait') setRow(it.c, 'wait', 'koşulmadı');
+    stopBtn.hidden = true;
+    out.replaceChildren(
+      h('div', { class: `msg ${tally.fail || tally.err ? 'warn' : 'ok'}` }, `${stop ? 'Durduruldu. ' : ''}${tally.pass} geçti, ${tally.fail} kaldı${tally.err ? `, ${tally.err} koşulamadı` : ''}${tally.skip ? `, ${tally.skip} atlandı` : ''}. Sonuçlar maddelere ${PLN} için işlendi.`),
+      ...failed.map(({ it, job }) => h('div', { class: 'batch-fail' },
+        h('b', {}, it.text.slice(0, 140)), h('pre', { class: 'runmsg' }, job.message),
+        h('button', { class: 'btn plain sm', type: 'button', onclick: () => openBugSheet({ g, frame, c: it.c, platform, item: it.text, section: it.section,
+          preset: { happened: `Otomasyon koşusunda (Maestro, ${PLN}) adım başarısız oldu:\n${job.message}`, images: job.image ? [job.image] : [] } }) }, 'Hata kaydı aç'))));
+  };
+
+  openSheet(`${title} · ${platform === 'ios' ? 'iOS\'ta' : 'Android\'de'} koş`, h('div', { class: 'bugform' },
+    info, h('label', { class: 'only-row' }, skipDone, ' Daha önce geçmiş maddeleri atla'), list, out),
+  [h('button', { class: 'btn link sm', type: 'button', onclick: () => { stop = true; if (current) send(`/api/runs/${current}/cancel`, 'POST').catch(() => {}); closeSheet(); } }, 'Kapat'), stopBtn, startBtn]);
 }
 
 // ---- Güncelleme ---------------------------------------------------------------------------

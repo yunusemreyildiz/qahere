@@ -135,11 +135,14 @@
   const isDone = (li) => platforms.every((p) => res(li)[p] === 'pass' || res(li)[p] === 'na');
   const isFail = (li) => platforms.some((p) => res(li)[p] === 'fail');
   const isOpen = (li) => platforms.some((p) => !res(li)[p]);
-  const textOf = (li) => [...li.childNodes].filter((n) => !(n.nodeType === 1 && n.matches('.pfc, .tick, .bugs'))).map((n) => n.textContent).join('').replace(/\s+/g, ' ').trim();
+  const textOf = (li) => [...li.childNodes].filter((n) => !(n.nodeType === 1 && n.matches('.pfc, .tick, .bugs, .upd-tag, .upd-why'))).map((n) => n.textContent).join('').replace(/\s+/g, ' ').trim();
   const sectionOf = (li) => {
     let h = null;
     for (const el of (li.closest('.sec, details') || d).querySelectorAll('h3, .chk li[data-c]')) { if (el === li) break; if (el.tagName === 'H3') h = el; }
-    return h ? clean(h.textContent) : '';
+    if (!h) return '';
+    const t = h.cloneNode(true); // başlığa eklenen koşu düğmeleri metne karışmasın
+    t.querySelectorAll('.grun').forEach((x) => x.remove());
+    return clean(t.textContent);
   };
   const askBug = (li, p) => parent.postMessage({ qa: 'fail', c: Number(li.dataset.c), platform: p, text: textOf(li), section: sectionOf(li) }, '*');
 
@@ -263,6 +266,28 @@
   }).filter(Boolean);
   // Şu anki iş: işaretlenmemiş maddesi olan ilk iş. "Kaldı" işaretli madde düzeltme bekler; sırayı tutmaz.
   const currentTask = () => tasks.find((g) => g.items.some(isOpen));
+
+  // İş (ya da alt başlık) başına toplu simülatör koşusu: maddeler sırayla koşturulur (uygulama yönetir).
+  const runGroup = (g, p) => parent.postMessage({ qa: 'runGroup', platform: p, title: g.title, items: g.items.map((li) => ({
+    c: Number(li.dataset.c), text: textOf(li), section: sectionOf(li), state: res(li)[p] || '' })) }, '*');
+  const runButtons = (g) => {
+    const box = make('span', 'grun');
+    for (const p of ALL) {
+      const b = make('button', `grun-b p-${p}`);
+      b.type = 'button';
+      b.dataset.p = p;
+      b.title = `${g.title}: maddeleri ${p === 'ios' ? 'iOS simülatöründe' : 'Android emülatöründe'} sırayla koş`;
+      b.innerHTML = PL[p].icon;
+      b.append(make('span', '', '▶'));
+      b.addEventListener('click', (e) => { e.stopPropagation(); runGroup(g, p); });
+      box.append(b);
+    }
+    return box;
+  };
+  const runBoxes = [];
+  if (kontrolSec) for (const g of groupsOf(kontrolSec.el)) if (g.h3 && g.items.length) { const bx = runButtons(g); g.h3.append(bx); runBoxes.push(bx); }
+  for (const o of orderBadges) { const bx = runButtons(o.g); o.li.append(bx); runBoxes.push(bx); }
+  const paintRunBoxes = () => runBoxes.forEach((bx) => bx.querySelectorAll('button').forEach((b) => { b.hidden = !platforms.includes(b.dataset.p); }));
   curBtn.addEventListener('click', () => { const g = currentTask(); if (g) go(g.h3 || g.items[0]); });
 
   const paint = () => {
@@ -275,6 +300,7 @@
     meter.classList.toggle('all', items.length > 0 && done === items.length);
     next.disabled = done === items.length;
     plBtns.forEach((b, i) => b.setAttribute('aria-pressed', String(platforms.includes(ALL[i]))));
+    paintRunBoxes();
     if (tasks.length > 1) {
       const g = currentTask();
       const i = g ? tasks.indexOf(g) : tasks.length;

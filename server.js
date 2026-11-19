@@ -19,6 +19,8 @@ import { askGuide, clearChat, markBugbotFiled } from './lib/ask.js';
 import { notifySlackSelf, slackSelfMessage } from './lib/notify.js';
 import { parseMcpList, inspectConnector } from './lib/connectors.js';
 import { scanSources } from './lib/preflight.js';
+import { firebaseUser, listReleases, installedVersion, installRelease } from './lib/firebase.js';
+import { proposeUpdate, saveUpdatedVersion, opCount, autoCheck, isAutoRunning } from './lib/sync.js';
 import { screenshot, devices } from './lib/device.js';
 import { readFlow, saveFlow, draftFlow, startRun, getRun, publicRun, cancelRun, activeRun } from './lib/runner.js';
 
@@ -300,6 +302,62 @@ app.post('/api/guides/:key/:id/:mode(ask|bugbot)', wrap(async (req, res) => {
     if (!res.writableEnded) res.end(`${JSON.stringify({ type: 'error', message: e.message })}\n`);
   } finally { asking.delete(k); }
 }));
+// Rehberi güncelle: rehberden sonra yazılanları bulur, değişiklik önerir (NDJSON akış). Uygulama ayrı ve onaylı.
+const proposals = new Map(); // token -> { key, id, ops, since, at }
+app.post('/api/guides/:key/:id/sync', wrap(async (req, res) => {
+  const { key, id } = req.params;
+  if (!fs.existsSync(guidePaths(key, id).meta)) return res.status(404).json({ error: 'Rehber bulunamadı.' });
+  const k = `${key}/${id}/sync`;
+  if (asking.has(k)) return res.status(409).json({ error: 'Bu rehber için güncelleme denetimi zaten sürüyor.' });
+  asking.add(k);
+  res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-store');
+  res.flushHeaders();
+  const write = (e) => { if (!res.writableEnded) res.write(`${JSON.stringify(e)}\n`); };
+  let run = null;
+  res.on('close', () => { if (!res.writableEnded) { run?.child.kill('SIGTERM'); asking.delete(k); } });
+  try {
+    run = await proposeUpdate({ key, id, onEvent: write });
+    const r = await run.done;
+    const token = crypto.randomBytes(8).toString('hex');
+    for (const [t, v] of proposals) if (Date.now() - v.at > 30 * 60_000) proposals.delete(t);
+    proposals.set(token, { key, id, ops: r.ops, since: r.since, at: Date.now() });
+    res.end(`${JSON.stringify({ type: 'done', token, ops: r.ops, count: opCount(r.ops), stats: r.stats })}\n`);
+  } catch (e) {
+    if (!res.writableEnded) res.end(`${JSON.stringify({ type: 'error', message: e.message })}\n`);
+  } finally { asking.delete(k); }
+}));
+app.post('/api/guides/:key/:id/sync/auto', wrap(async (req, res) => {
+  const { key, id } = req.params;
+  if (!fs.existsSync(guidePaths(key, id).meta)) return res.status(404).json({ error: 'Rehber bulunamadı.' });
+  if (asking.has(`${key}/${id}/sync`)) return res.json({ status: 'running' });
+  res.json(await autoCheck({ key, id, updateMeta, everyHours: getSettings().syncEvery }));
+}));
+app.get('/api/guides/:key/:id/sync/auto', wrap(async (req, res) => {
+  const rec = (await listGuides(req.params.key)).find((g) => g.id === req.params.id);
+  res.json({ running: isAutoRunning(req.params.key, req.params.id), pending: rec?.pending || null });
+}));
+// Bekleyen öneriyi reddet: rehbere eklenmez, denetim zamanı ilerler.
+app.delete('/api/guides/:key/:id/sync/pending', wrap(async (req, res) => {
+  await updateMeta(req.params.key, req.params.id, (r) => { delete r.pending; r.syncedAt = new Date().toISOString(); });
+  res.json({ ok: true });
+}));
+app.post('/api/guides/:key/:id/sync/apply', wrap(async (req, res) => {
+  let pr = proposals.get(String(req.body?.token || ''));
+  if (req.body?.pending) {
+    const rec = (await listGuides(req.params.key)).find((g) => g.id === req.params.id);
+    if (rec?.pending) pr = { key: req.params.key, id: req.params.id, ops: rec.pending.ops, since: rec.pending.since };
+  }
+  if (!pr || pr.key !== req.params.key || pr.id !== req.params.id) return res.status(404).json({ error: 'Öneri bulunamadı ya da süresi doldu; yeniden denetle.' });
+  proposals.delete(String(req.body?.token || ''));
+  if (req.body?.pending) await updateMeta(pr.key, pr.id, (r) => { delete r.pending; });
+  if (!opCount(pr.ops)) {
+    await updateMeta(pr.key, pr.id, (r) => { r.syncedAt = new Date().toISOString(); });
+    return res.json({ updated: false });
+  }
+  res.json({ updated: true, guide: await saveUpdatedVersion(pr) });
+}));
+
 app.delete('/api/guides/:key/:id/:mode(chat|bugbot)', wrap(async (req, res) => {
   await clearChat(req.params.key, req.params.id, req.params.mode === 'bugbot' ? 'bugbot' : 'ask');
   res.json({ ok: true });
@@ -411,6 +469,26 @@ app.get('/api/runs/:id', (req, res) => {
   res.json(publicRun(job, { from: Number(req.query.from) || 0 }));
 });
 app.post('/api/runs/:id/cancel', (req, res) => res.json({ ok: cancelRun(req.params.id) }));
+
+// Firebase App Distribution → Android emülatörüne kurulum (koşudan önce doğru sürüm).
+app.get('/api/firebase/android', wrap(async (req, res) => {
+  const device = String(req.query.device || '');
+  const [user, installed] = await Promise.all([firebaseUser(), installedVersion(device).catch(() => null)]);
+  if (!user.loggedIn) return res.json({ user, installed, error: 'Firebase\'e giriş yapılmamış. Terminalde bir kez "firebase login" çalıştır.' });
+  try { res.json({ user, installed, ...(await listReleases()) }); }
+  catch (e) { res.json({ user, installed, error: e.message }); }
+}));
+app.post('/api/firebase/install', wrap(async (req, res) => {
+  const device = String(req.body?.device || '');
+  if (!/^[\w.:-]{3,80}$/.test(device)) return res.status(400).json({ error: 'Cihaz seçilmedi.' });
+  res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+  res.flushHeaders();
+  const write = (e) => { if (!res.writableEnded) res.write(`${JSON.stringify(e)}\n`); };
+  try {
+    const r = await installRelease({ releaseName: String(req.body?.release || ''), deviceId: device, allowUninstall: Boolean(req.body?.allowUninstall), onStep: (m) => write({ type: 'step', message: m }) });
+    res.end(`${JSON.stringify({ type: 'done', ...r })}\n`);
+  } catch (e) { res.end(`${JSON.stringify({ type: 'error', message: e.message, needsUninstall: Boolean(e.needsUninstall) })}\n`); }
+}));
 
 // Açık simülatörden ya da emülatörden ekran görüntüsü (yerel komutlar; dışarıya bir şey gitmez).
 app.post('/api/screenshot', wrap(async (req, res) => res.json(await screenshot(req.body?.platform))));

@@ -202,11 +202,45 @@ Aynı anda tek rehber üretilir; ikincisi için ilkinin bitmesini bekle ya da **
 
 **Sen kimsin?** İlk açılışta (ve Ayarlar'da) rolünü, test ettiğin platformları ve takımının Jira panolarını seçersin. Liste "Takımım" ile bu panolara göre süzülür; rol ve platformlar rehber yazılırken Claude'a da söylenir. Tek platform seçtiysen kontrol listesi o platform için yazılır.
 
+### Rehberi güncel tutmak
+
+Rehber üretildikten sonra Jira'da yeni yorum yazıldıysa ya da Slack'te karar değiştiyse rehberi baştan üretmen gerekmez: araç çubuğundaki **Güncellemeleri denetle**'ye bas. qaHere Jira'daki yeni yorumları ve durumları doğrudan okur, Claude Slack'te (ve açtığın diğer kaynaklarda) rehberden sonra yazılanları yalnızca okuyarak arar. Sonuç önce önizlenir; **Rehbere ekle** dersen rehberin yeni bir sürümü oluşur:
+
+- en üstte "Güncelleme" kutusu (ne değişti, kaynak bağlantılarıyla),
+- yeni kontrol maddeleri ilgili başlığın altına eklenir; var olan maddelerin numaraları ve işaretlerin korunur,
+- beklenen davranışı değişen maddenin metni güncellenir ve işareti sıfırlanır ("değişti"),
+- geçersiz kalan madde silinmez, üstü çizilir ("geçersiz"),
+- yeni çelişkiler Çelişkiler bölümüne eklenir.
+
+Eski sürüm durur; hata kayıtların, mockların ve sohbetler yeni sürüme taşınır.
+
+**Otomatik denetim:** Rehberi açtığında, son denetimden 1 gün geçtiyse qaHere arka planda bakar; bulduğu varsa düğme **Güncelleme var (N)** olur. Önizleyip **Rehbere ekle**, **Ekleme** ya da **Sonra** dersin; onaylamadan rehbere hiçbir şey eklenmez. Aralık Ayarlar → Kaynaklar → *Rehberleri güncel tut*'tan değişir (kapalı, 6 saat, 1 gün, 3 gün). Denetim tam üretimden çok daha kısa sürer (yaklaşık 1–2 dakika) ve çok daha az kullanım hakkı harcar. Slack webhook'u kullanılmaz: qaHere yalnızca bu bilgisayarda çalıştığı için Slack'e bağlanıp yeni mesajları kendisi arar.
+
 ### Epic'te işleri tek tek bitirmek
 
 Epic rehberinde **Test sırası** bölümü hangi işle başlayacağını ve nedenini söyler: test edilebilir olan, diğerlerinin önünü açan ve kritik olan önce; geliştirmede ya da bloklu olan sonda. Kontrol listesi de iş iş, aynı sırayla gelir.
 
 Rehberin sol sütununda **Şu anki iş** kartı sıradaki işi ve ilerlemesini gösterir; **Sıradaki kontrole git** o işin bitmemiş maddesine götürür. Bir işin bütün maddeleri işaretlenince (Geçti, Kaldı ya da Uygulanmaz) sıradaki işe geçilir; düzeltme bekleyen madde sırayı tutmaz, Test sırası listesinde "1 kaldı" olarak görünür.
+
+### Bir işi simülatörde toplu koşmak
+
+Kontrol listesindeki her iş başlığının (ve Test sırası listesinin) yanında **▶ iOS / ▶ Android** düğmesi var. Basınca o işin maddeleri sırayla koşar: akışı olmayan maddeye Claude bir kez Maestro akışı yazar (kullanım hakkından düşer), koşuyu Maestro yapar (Claude kullanmaz). Her sonuç maddeye işlenir; kalan maddeler için ekran görüntüsüyle **Hata kaydı aç** düğmesi çıkar. Daha önce geçmiş maddeler istersen atlanır; **Durdur** ile istediğin an kesersin. Tek bir maddeyi koşmak için maddenin platform düğmesindeki menüden *emülatöründe koş…*'u seç.
+
+### Firebase'den sürüm kurmak (Android)
+
+Koşudan önce emülatörde doğru sürüm olmalı. Toplu ve tekli koşu pencerelerinin üstünde emülatörde kurulu sürüm ve Firebase App Distribution'daki sürümler (notlarıyla) görünür; **Bu sürümü kur** APK'yı indirip `adb` ile emülatöre kurar. Rehberin işinin (epic'te o alt işin) anahtarını sürüm notlarında arar: "PROJ-123 ilk kez 2.5.0 (412) ile geldi; emülatördeki sürüm bunu içermiyor" der ve doğru sürümü hazır seçer. İş hiçbir sürümün notunda yoksa düzeltmesinin henüz bir sürüme girmemiş olabileceğini söyler.
+
+Bir kez kurulum: Firebase CLI'ı kur ve Firebase console'a girebildiğin Google hesabınla giriş yap:
+
+```bash
+npm install -g firebase-tools
+```
+
+```bash
+firebase login
+```
+
+qaHere, Ayarlar → Simülatörde koşu'daki Android paket adından uygulamanı Firebase projelerinde kendisi bulur. Belirteç saklamaz; CLI girişini okur. İmza farkı yüzünden kurulamazsa (ör. başka kanaldan kurulmuşsa) önce kaldırmak için sorar, çünkü bu uygulamanın emülatördeki verisini siler. iOS'taki App Distribution sürümleri gerçek cihaz içindir; simülatöre kurulamaz.
 
 ### Rehbere sormak
 

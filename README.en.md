@@ -204,11 +204,45 @@ One guide is generated at a time; wait for the first to finish or **cancel** it.
 
 **Who are you?** On first run (and in Settings) you pick your role, the platforms you test and your team's Jira boards. "Takımım" filters the list by those boards; your role and platforms are also passed to Claude when the guide is written. If you picked a single platform, the checklist is written for that platform.
 
+### Keeping a guide up to date
+
+If someone commented on Jira or a decision changed on Slack after the guide was generated, you don't have to regenerate it: press **Güncellemeleri denetle** (Check for updates) in the toolbar. qaHere reads new Jira comments and statuses directly, and Claude searches Slack (and your other enabled sources) read-only for anything written since the guide. You see a preview first; **Rehbere ekle** (Add to guide) creates a new version of the guide:
+
+- an "Update" box at the top (what changed, with source links),
+- new checklist items under the matching heading; existing items keep their numbers and your marks,
+- items whose expected behaviour changed get new text and their mark is reset ("changed"),
+- items that no longer apply aren't deleted, they're struck through ("obsolete"),
+- new contradictions are added to the Contradictions section.
+
+The old version stays; your bugs, mocks and chats carry over.
+
+**Automatic check:** when you open a guide and a day has passed since the last check, qaHere looks in the background; if it finds something, the button turns into **Güncelleme var (N)** (Updates available). Preview it and choose **Rehbere ekle** (Add), **Ekleme** (Don't add) or **Sonra** (Later); nothing is added without your approval. Change the interval in Settings → Sources → *Rehberleri güncel tut* (Keep guides up to date): off, 6 hours, 1 day, 3 days. A check is much shorter than a full generation (about 1–2 minutes) and uses far less of your usage. No Slack webhook is used: since qaHere runs only on your computer, it reaches out to Slack and looks for new messages itself.
+
 ### Finishing an epic one issue at a time
 
 An epic guide has a **Test sırası** (Test order) section that tells you which issue to start with and why: what's testable, what unblocks the others and what's critical goes first; what's still in development or blocked goes last. The checklist follows the same order, issue by issue.
 
 The **Şu anki iş** (Current issue) card in the guide's left column shows the next issue and its progress; **Sıradaki kontrole git** (Go to next check) takes you to its next open item. Once every item of an issue is marked (Passed, Failed or N/A) you move on to the next one; a failed item waiting for a fix doesn't hold up the order and shows as "1 kaldı" (1 failed) in the Test order list.
+
+### Running an issue on a simulator in one go
+
+Each issue heading in the checklist (and the Test order list) has **▶ iOS / ▶ Android** buttons. Press one and that issue's items run one after another: for items without a flow, Claude writes a Maestro flow once (uses some of your usage), and Maestro runs them (no Claude). Each result is recorded on the item; failed items get a **Hata kaydı aç** (File a bug) button with the screenshot. Items that already passed can be skipped; **Durdur** (Stop) stops at any time. To run a single item, pick *run on simulator/emulator…* from the item's platform button menu.
+
+### Installing a build from Firebase (Android)
+
+Runs need the right build on the emulator. The batch and single-item run windows show the installed version and the Firebase App Distribution releases (with notes); **Bu sürümü kur** (Install this build) downloads the APK and installs it on the emulator with `adb`. It looks up the guide's issue key (for an epic, that sub-issue's key) in the release notes: "PROJ-123 first shipped in 2.5.0 (412); the build on the emulator doesn't include it", and preselects the right build. If no release mentions the issue, it tells you the fix may not be in a build yet.
+
+One-time setup: install the Firebase CLI and sign in with the Google account you use for the Firebase console:
+
+```bash
+npm install -g firebase-tools
+```
+
+```bash
+firebase login
+```
+
+qaHere finds your app in your Firebase projects from the Android package name in Settings → Simulator runs. It stores no tokens; it reads the CLI sign-in. If the install fails because of a signature mismatch (e.g. installed from another channel), it asks before uninstalling, since that wipes the app's data on the emulator. App Distribution iOS builds are for real devices and can't be installed on a simulator.
 
 ### Asking the guide
 
