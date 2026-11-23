@@ -24,6 +24,7 @@ import { proposeUpdate, saveUpdatedVersion, opCount, autoCheck, isAutoRunning } 
 import { screenshot, devices } from './lib/device.js';
 import { appStatus, launchApp, openDeeplink, checkEndpoint, checkAssociations, toolsStatus, attention } from './lib/cockpit.js';
 import { meetingsOverview } from './lib/meetings.js';
+import { setClaudeInMeeting, recordResult, autoJoinTick, joinBusy } from './lib/meetjoin.js';
 import { readFlow, saveFlow, draftFlow, startRun, getRun, publicRun, cancelRun, activeRun } from './lib/runner.js';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
@@ -526,6 +527,21 @@ app.put('/api/meetings/:id', wrap(async (req, res) => {
   saveSettings({ meetings: { overrides } });
   res.json({ settings: getSettings().meetings });
 }));
+
+// Kullanıcı bir toplantıda "Şimdi ekle / Çıkar"a bastı: o toplantı için Claude'u Claude Meetings'te ekler ya da çıkarır.
+app.post('/api/meetings/:id/join', wrap(async (req, res) => {
+  const action = req.body?.action === 'remove' ? 'remove' : 'add';
+  const m = (await meetingsOverview()).upcoming.find((x) => x.id === req.params.id);
+  if (!m) return res.status(404).json({ error: 'Toplantı listede yok.' });
+  if (joinBusy()) return res.status(409).json({ error: 'Başka bir toplantı için işlem sürüyor; biraz sonra dene.' });
+  const meeting = { id: m.id, title: m.title, start: m.start };
+  const r = await setClaudeInMeeting(meeting, action);
+  await recordResult(meeting, action, r);
+  res.json(r);
+}));
+// "Benim adıma eklesin" açıksa 10 dakikada bir eklenmesi gereken toplantıya bakılır (bir seferde bir toplantı).
+setInterval(() => { autoJoinTick().catch(() => {}); }, 10 * 60_000).unref();
+setTimeout(() => { autoJoinTick().catch(() => {}); }, 90_000).unref();
 
 app.get('/guides/:key/:id.html', wrap(async (req, res) => {
   const p = guidePaths(req.params.key, req.params.id);

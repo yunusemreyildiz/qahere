@@ -174,7 +174,7 @@ function draftFrom(cfg) {
     bug: JSON.parse(JSON.stringify(cfg.bug || {})), run: JSON.parse(JSON.stringify(cfg.run || { ios: {}, android: {} })),
     profile: JSON.parse(JSON.stringify(cfg.profile || { role: '', platforms: [], boards: [] })),
     connectors: JSON.parse(JSON.stringify(cfg.connectors || {})), syncEvery: cfg.syncEvery ?? 24,
-    meetings: { enabled: cfg.meetings?.enabled !== false, include: [...(cfg.meetings?.include || [])], exclude: [...(cfg.meetings?.exclude || [])] } };
+    meetings: { enabled: cfg.meetings?.enabled !== false, autoAdd: cfg.meetings?.autoAdd === true, include: [...(cfg.meetings?.include || [])], exclude: [...(cfg.meetings?.exclude || [])] } };
 }
 
 async function saveDraft(d, extra = {}) {
@@ -523,6 +523,8 @@ function meetingsSection(d) {
   const m = d.meetings;
   const sw = h('input', { type: 'checkbox', class: 'switch', 'aria-label': 'Toplantılara Claude katılsın', onchange: () => { m.enabled = sw.checked; } });
   sw.checked = m.enabled;
+  const auto = h('input', { type: 'checkbox', class: 'switch', 'aria-label': 'qaHere benim adıma eklesin', onchange: () => { m.autoAdd = auto.checked; } });
+  auto.checked = m.autoAdd;
   const words = (key, label, ph) => {
     const i = h('input', { class: 'bare', placeholder: ph, value: m[key].join(', '), spellcheck: 'false', autocomplete: 'off',
       oninput: () => { m[key] = i.value.split(',').map((s) => s.trim()).filter(Boolean); } });
@@ -547,14 +549,27 @@ function meetingsSection(d) {
       }, n)));
       paint();
       const when = x.start ? new Date(x.start).toLocaleString('tr-TR', { weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
-      return h('div', { class: 'row' }, h('div', { class: 'grow' }, h('b', {}, x.title),
-        h('span', {}, [when, MEET_DECISION[x.decision] || x.decision, x.reason].filter(Boolean).join(' · '))), seg);
+      const info = h('span', {}, [when, MEET_DECISION[x.decision] || x.decision, x.reason].filter(Boolean).join(' · '));
+      const added = x.decision === 'eklendi';
+      const future = !x.start || Date.parse(x.start) > Date.now() - 30 * 60_000;
+      const act = future && (x.decision === 'eklenecek' || x.decision === 'hata' || added || ov[x.id] === 'add') ? h('button', { class: 'btn plain sm', type: 'button', onclick: async () => {
+        act.disabled = true; act.textContent = added ? 'Çıkarılıyor…' : 'Ekleniyor…';
+        info.textContent = 'qaHere Chrome\'da claude.ai/meetings\'i açıp düğmeye basıyor; bir iki dakika sürebilir.';
+        try {
+          const r = await send(`/api/meetings/${encodeURIComponent(x.id)}/join`, 'POST', { action: added ? 'remove' : 'add' });
+          info.textContent = r.ok ? (r.status === 'eklendi' ? 'Claude eklendi.' : r.status === 'kaldirildi' ? 'Claude çıkarıldı.' : r.detail || r.status) : `Olmadı: ${r.detail}`;
+          act.remove();
+        } catch (e) { info.textContent = e.message; act.disabled = false; act.textContent = 'Yeniden dene'; }
+      } }, added ? 'Çıkar' : 'Şimdi ekle') : null;
+      return h('div', { class: 'row' }, h('div', { class: 'grow' }, h('b', {}, x.title), info), act, seg);
     }));
   }).catch((e) => list.replaceChildren(h('div', { class: 'row' }, h('div', { class: 'grow' }, h('span', {}, e.message)))));
   return h('div', {},
     h('div', { class: 'group' },
       h('div', { class: 'row' }, h('div', { class: 'grow' }, h('b', {}, 'Toplantılara Claude katılsın ve not alsın'),
         h('span', {}, 'Claude Desktop\'taki görev takvimine bakar, kurala uyan Google Meet toplantılarında Claude Meetings\'te Claude\'u ekler; toplantı bitince kararlar rehbere gelir. Kapatırsan iki görev de hiçbir şey yapmaz.')), sw),
+      h('div', { class: 'row' }, h('div', { class: 'grow' }, h('b', {}, 'qaHere Claude\'u benim adıma eklesin'),
+        h('span', {}, 'Açarsan qaHere, kurala uyan ya da "Girsin" dediğin toplantılarda Chrome\'unda claude.ai/meetings\'i açıp yalnızca "+ Add" düğmesine basar ("Girmesin" dediğin eklenmiş toplantıdan çıkarır). Toplantıya katılmaz, yanıt vermez, kimseye mesaj atmaz. Kapalıyken listeden tek tek "Şimdi ekle" dersin.')), auto),
       words('include', 'Başlıkta geçerse', 'Desk-Check, Grooming, Refinement'),
       words('exclude', 'Hariç', 'Daily, Standup, Birebir')),
     h('div', { class: 'group-foot' }, 'Jira iş anahtarı ya da bir rehberin konusu geçen toplantılar da eklenir. Dış katılımcısı olan toplantılara Claude eklenmez.'),
