@@ -22,6 +22,8 @@ import { scanSources } from './lib/preflight.js';
 import { firebaseUser, listReleases, installedVersion, installRelease, buildsForKeys } from './lib/firebase.js';
 import { proposeUpdate, saveUpdatedVersion, opCount, autoCheck, isAutoRunning } from './lib/sync.js';
 import { screenshot, devices } from './lib/device.js';
+import { appStatus, launchApp, openDeeplink, checkEndpoint, checkAssociations, toolsStatus, attention } from './lib/cockpit.js';
+import { meetingsOverview } from './lib/meetings.js';
 import { readFlow, saveFlow, draftFlow, startRun, getRun, publicRun, cancelRun, activeRun } from './lib/runner.js';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
@@ -496,6 +498,34 @@ app.post('/api/firebase/install', wrap(async (req, res) => {
 
 // Açık simülatörden ya da emülatörden ekran görüntüsü (yerel komutlar; dışarıya bir şey gitmez).
 app.post('/api/screenshot', wrap(async (req, res) => res.json(await screenshot(req.body?.platform))));
+
+// Kokpit: test ortamının sağlığı. Yavaş denetimler ayrı uçlarda; cihazda bir şey açmak yalnızca POST ile (kullanıcı tıklar).
+app.get('/api/cockpit/app', wrap(async (_req, res) => res.json(await appStatus())));
+app.get('/api/cockpit/tools', wrap(async (_req, res) => res.json(await toolsStatus())));
+app.get('/api/cockpit/attention', wrap(async (_req, res) => res.json(await attention())));
+app.get('/api/cockpit/associations', wrap(async (_req, res) => res.json({ domains: await checkAssociations() })));
+app.post('/api/cockpit/launch', wrap(async (req, res) => {
+  const p = req.body?.platform;
+  if (!['ios', 'android'].includes(p)) return res.status(400).json({ error: 'Platform ios ya da android olmalı.' });
+  res.json(await launchApp(p));
+}));
+app.post('/api/cockpit/deeplinks/:i', wrap(async (req, res) => {
+  const p = req.body?.platform;
+  if (!['ios', 'android'].includes(p)) return res.status(400).json({ error: 'Platform ios ya da android olmalı.' });
+  res.json(await openDeeplink(req.params.i, p));
+}));
+app.post('/api/cockpit/endpoints/:i', wrap(async (req, res) => res.json(await checkEndpoint(req.params.i))));
+
+// Toplantılar: görevlerin yazdığı yaklaşan toplantılar + kullanıcının tek tek seçimi (girsin / girmesin / kurala bırak).
+app.get('/api/meetings', wrap(async (_req, res) => res.json({ ...(await meetingsOverview()), settings: getSettings().meetings })));
+app.put('/api/meetings/:id', wrap(async (req, res) => {
+  const v = req.body?.choice;
+  if (!['add', 'skip', 'auto'].includes(v)) return res.status(400).json({ error: 'Seçim add, skip ya da auto olmalı.' });
+  const overrides = { ...getSettings().meetings.overrides };
+  if (v === 'auto') delete overrides[req.params.id]; else overrides[req.params.id] = v;
+  saveSettings({ meetings: { overrides } });
+  res.json({ settings: getSettings().meetings });
+}));
 
 app.get('/guides/:key/:id.html', wrap(async (req, res) => {
   const p = guidePaths(req.params.key, req.params.id);

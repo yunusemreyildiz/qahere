@@ -222,6 +222,18 @@ Eski sürüm durur; hata kayıtların, mockların ve sohbetler yeni sürüme ta�
 
 qaHere'nin arkasındaki Claude Code Claude Meetings'i doğrudan okuyamadığı için (izin yok) okuma işini Claude Desktop'taki görev yapar. Not dosyasının biçimi `lib/meetings.js`'in başında yazıyor; elle de not bırakabilirsin.
 
+**Ayarlar → Toplantılar:** özelliği tamamen açıp kapatırsın, hangi kelimeler geçince eklensin / hangileri hariç tutulsun diye kuralları değiştirirsin. Ekleme görevi her çalıştığında yaklaşan toplantıları ve kararını burada listeler; her birine "Kural · Girsin · Girmesin" diyebilirsin. Seçimin görevin bir sonraki çalışmasında (hafta içi saatte bir) uygulanır; "Girmesin" dediğin toplantıya Claude eklenmişse çıkarılır.
+
+**Kokpit:** üst çubuktaki **Kokpit** düğmesi test ortamının sağlığını tek ekranda gösterir. Üstteki ışıklar yeşil, sarı ya da kırmızı yanar; birine tıklayınca ayrıntısına inersin.
+
+- **Test edilen uygulama:** emülatör ve simülatör açık mı, uygulama kurulu mu, sürümü Firebase'deki son sürümle aynı mı, çalışıyor mu, son çökme ne zaman (Android'de crash kaydı, iOS'ta tanı raporları), Android App Links alan adları doğrulanmış mı. Uygulama kapalıysa kokpitten açarsın.
+- **Deeplink'ler:** tanımladığın deeplink'leri tek tıkla Android'de ya da iOS'ta açar; uygulama yerine tarayıcı açtıysa ya da bağlantıyı açan uygulama yoksa kırmızı yanar, açılan ekranın görüntüsünü gösterir. https bağlantılarında sitenin `assetlinks.json` ve `apple-app-site-association` dosyalarında uygulamanın tanımlı olup olmadığına bakar.
+- **Adresler:** ayakta olması gereken servis adreslerine her açılışta yalnızca GET atar; hata ya da 10 sn'de yanıt gelmezse kırmızı yanar.
+- **qaHere ve araçlar:** Claude Code, Jira, PDF, Firebase girişi, adb, Xcode, Maestro, Proxyman ve toplantı görevlerinin son çalışması.
+- **Dikkat isteyenler:** kalan maddeler, rehberlere bekleyen güncellemeler, yaklaşan toplantılar.
+
+Deeplink ve adresleri kokpitteki **Bağlantıları düzenle** ile eklersin; bunlar yalnızca `data/settings.json`'da durur.
+
 **Otomatik denetim:** Rehberi açtığında, son denetimden 1 gün geçtiyse qaHere arka planda bakar; bulduğu varsa düğme **Güncelleme var (N)** olur. Önizleyip **Rehbere ekle**, **Ekleme** ya da **Sonra** dersin; onaylamadan rehbere hiçbir şey eklenmez. Aralık Ayarlar → Kaynaklar → *Rehberleri güncel tut*'tan değişir (kapalı, 6 saat, 1 gün, 3 gün). Denetim tam üretimden çok daha kısa sürer (yaklaşık 1–2 dakika) ve çok daha az kullanım hakkı harcar. Slack webhook'u kullanılmaz: qaHere yalnızca bu bilgisayarda çalıştığı için Slack'e bağlanıp yeni mesajları kendisi arar.
 
 ### Epic'te işleri tek tek bitirmek

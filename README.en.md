@@ -224,6 +224,18 @@ The old version stays; your bugs, mocks and chats carry over.
 
 The Claude Code that qaHere runs on can't read Claude Meetings directly (no permission), so the Claude Desktop task does the reading. The note format is described at the top of `lib/meetings.js`; you can drop a note by hand too.
 
+**Settings → Toplantılar (Meetings):** turn the whole feature on or off and edit the rules (words that add a meeting, words that exclude it). Each time the add task runs it lists upcoming meetings and its decision here; you can set each one to "Rule · Join · Don't join". Your choice is applied on the task's next run (hourly on weekdays); if you say "Don't join" to a meeting Claude was already added to, it is removed.
+
+**Cockpit:** the **Kokpit** button in the top bar shows the health of your test environment on one screen. The lights at the top glow green, amber or red; click one to jump to its details.
+
+- **App under test:** is the emulator / simulator up, is the app installed, does its version match the latest Firebase release, is it running, when did it last crash (Android crash log, iOS diagnostic reports), are the Android App Links domains verified. You can launch the app from the cockpit.
+- **Deeplinks:** opens your deeplinks on Android or iOS with one click; turns red if a browser opened instead of the app or nothing handles the link, and shows a screenshot of the screen that opened. For https links it checks whether the site's `assetlinks.json` and `apple-app-site-association` list the app.
+- **Endpoints:** sends a GET to each service address that should be up, on every open; red on an error or no response within 10 s.
+- **qaHere and tools:** Claude Code, Jira, PDF, Firebase login, adb, Xcode, Maestro, Proxyman and the last run of the meeting tasks.
+- **Needs attention:** failed items, pending guide updates, upcoming meetings.
+
+Add deeplinks and endpoints with **Bağlantıları düzenle** (Edit links) in the cockpit; they live only in `data/settings.json`.
+
 **Automatic check:** when you open a guide and a day has passed since the last check, qaHere looks in the background; if it finds something, the button turns into **Güncelleme var (N)** (Updates available). Preview it and choose **Rehbere ekle** (Add), **Ekleme** (Don't add) or **Sonra** (Later); nothing is added without your approval. Change the interval in Settings → Sources → *Rehberleri güncel tut* (Keep guides up to date): off, 6 hours, 1 day, 3 days. A check is much shorter than a full generation (about 1–2 minutes) and uses far less of your usage. No Slack webhook is used: since qaHere runs only on your computer, it reaches out to Slack and looks for new messages itself.
 
 ### Finishing an epic one issue at a time

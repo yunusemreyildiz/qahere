@@ -447,3 +447,33 @@ select.ver{font-family:var(--sans);font-size:13px;padding:6px 28px 6px 10px}
   .main.gmode{overflow:visible} .gview{padding:10px 10px 16px} .gview .viewer{min-height:80vh} .gtop{padding:12px 12px 0}
 }
 .bugform .msg{white-space:pre-line}
+
+/* Kokpit: uyarı paneli (annunciator) — her ışık bir alan; renk durumu söyler, tıklayınca ayrıntıya iner. */
+.wrap.wide{max-width:1180px}
+.cp-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:18px}
+.cp-head h1{font:600 30px/1.1 var(--display)}
+.muted{color:var(--graphite);font-size:13px}
+.ann{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px;padding:8px;background:#16191c;border-radius:var(--r);margin-bottom:28px}
+.lamp{border:1px solid #2b3034;background:#1f2327;border-radius:var(--r-sm);padding:9px 10px 10px;text-align:left;color:#7b828a;min-height:62px;
+  display:flex;flex-direction:column;justify-content:space-between;gap:4px;transition:background .2s,color .2s}
+.lamp b{font:600 11.5px/1.2 var(--sans);letter-spacing:.02em}
+.lamp span{font:500 12.5px/1.25 var(--mono);overflow-wrap:anywhere}
+.lamp:hover{border-color:#4a5157}
+.lamp.ok{background:color-mix(in srgb,#2fbf5b 16%,#1f2327);border-color:color-mix(in srgb,#2fbf5b 45%,#1f2327);color:#9be8b2}
+.lamp.warn{background:color-mix(in srgb,#f0a43c 20%,#1f2327);border-color:color-mix(in srgb,#f0a43c 55%,#1f2327);color:#ffd08a}
+.lamp.bad{background:color-mix(in srgb,#ff4d5e 24%,#1f2327);border-color:#ff4d5e;color:#ffb3ba;box-shadow:0 0 0 1px #ff4d5e inset}
+.lamp.bad b::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:#ff4d5e;margin-right:6px;vertical-align:1px;animation:blink 1.2s steps(2,start) 3}
+@keyframes blink{to{visibility:hidden}}
+@media (prefers-reduced-motion:reduce){.lamp.bad b::before{animation:none}}
+.cp-sec{scroll-margin-top:16px}
+.cp-cols{display:grid;grid-template-columns:1fr 1fr;gap:0 18px}
+.cp-pl{font:600 16px var(--display)}
+.mono{font-family:var(--mono)!important;font-size:12.5px!important}
+.rowbtn{width:100%;border:0;border-bottom:1px solid var(--rule);background:transparent;text-align:left}
+.rowbtn:hover{background:var(--well)}
+.dl-outs{display:flex;flex-wrap:wrap;gap:14px;padding:0 0 2px 20px}
+.dl-res{display:flex;gap:10px;align-items:flex-start;max-width:360px}
+.dl-res span{display:block;color:var(--graphite);font-size:13px}
+.shot{width:84px;border-radius:6px;border:1px solid var(--rule-2);flex:none}
+.okt{color:var(--ok)} .warnt{color:var(--warn)} .badt{color:var(--bad)}
+@media (max-width:900px){.ann{grid-template-columns:repeat(3,minmax(0,1fr))}.cp-cols{grid-template-columns:1fr}}

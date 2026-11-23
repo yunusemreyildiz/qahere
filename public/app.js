@@ -164,6 +164,7 @@ function showStatus(extra) {
   ), [h('button', { class: 'btn sm', type: 'button', onclick: closeSheet }, 'Bitti')]);
 }
 $('#statusBtn').addEventListener('click', () => showStatus());
+$('#cockpitBtn').addEventListener('click', () => showCockpit());
 
 // ---- Ayar bölümleri (kurulum ve Ayarlar sayfası ortak kullanır) ------------------------
 
@@ -172,11 +173,12 @@ function draftFrom(cfg) {
     projects: [...cfg.projects], sources: { ...cfg.sources }, model: cfg.model, accent: cfg.accent,
     bug: JSON.parse(JSON.stringify(cfg.bug || {})), run: JSON.parse(JSON.stringify(cfg.run || { ios: {}, android: {} })),
     profile: JSON.parse(JSON.stringify(cfg.profile || { role: '', platforms: [], boards: [] })),
-    connectors: JSON.parse(JSON.stringify(cfg.connectors || {})), syncEvery: cfg.syncEvery ?? 24 };
+    connectors: JSON.parse(JSON.stringify(cfg.connectors || {})), syncEvery: cfg.syncEvery ?? 24,
+    meetings: { enabled: cfg.meetings?.enabled !== false, include: [...(cfg.meetings?.include || [])], exclude: [...(cfg.meetings?.exclude || [])] } };
 }
 
 async function saveDraft(d, extra = {}) {
-  const body = { workspace: d.workspace, jiraBaseUrl: d.jiraBaseUrl, jiraEmail: d.jiraEmail, projects: d.projects, sources: d.sources, model: d.model, accent: d.accent, bug: d.bug, run: d.run, profile: d.profile, connectors: d.connectors, syncEvery: d.syncEvery, ...extra };
+  const body = { workspace: d.workspace, jiraBaseUrl: d.jiraBaseUrl, jiraEmail: d.jiraEmail, projects: d.projects, sources: d.sources, model: d.model, accent: d.accent, bug: d.bug, run: d.run, profile: d.profile, connectors: d.connectors, syncEvery: d.syncEvery, meetings: d.meetings, ...extra };
   if (d.jiraApiToken) body.jiraApiToken = d.jiraApiToken;
   applyConfig(await send('/api/settings', 'PUT', body));
 }
@@ -515,6 +517,50 @@ function runSection(d) {
   );
 }
 
+// Toplantılar: Claude Desktop'taki iki görev (Claude'u toplantıya ekleme, not çıkarma) bu ayarı okur.
+const MEET_DECISION = { eklendi: 'Claude ekli', eklenecek: 'Eklenecek', atlandi: 'Atlandı', kaldirildi: 'Claude çıkarıldı', hata: 'Eklenemedi' };
+function meetingsSection(d) {
+  const m = d.meetings;
+  const sw = h('input', { type: 'checkbox', class: 'switch', 'aria-label': 'Toplantılara Claude katılsın', onchange: () => { m.enabled = sw.checked; } });
+  sw.checked = m.enabled;
+  const words = (key, label, ph) => {
+    const i = h('input', { class: 'bare', placeholder: ph, value: m[key].join(', '), spellcheck: 'false', autocomplete: 'off',
+      oninput: () => { m[key] = i.value.split(',').map((s) => s.trim()).filter(Boolean); } });
+    return h('label', { class: 'row' }, h('span', { class: 'lab' }, label), h('div', { class: 'grow' }, i));
+  };
+  const list = h('div', { class: 'group' }, h('div', { class: 'row' }, h('div', { class: 'grow' }, h('span', {}, 'Yaklaşan toplantılara bakılıyor…'))));
+  const runInfo = h('div', { class: 'group-foot' });
+  api('/api/meetings').then((r) => {
+    const ov = r.settings.overrides || {};
+    runInfo.textContent = `Ekleme görevi ${r.joinRunAt ? `en son ${fmtDate(r.joinRunAt)}` : 'henüz çalışmadı'} · not görevi ${r.notesRunAt ? `en son ${fmtDate(r.notesRunAt)}` : 'henüz çalışmadı'}. Seçimlerin görevin bir sonraki çalışmasında (hafta içi saatte bir) uygulanır.`;
+    if (!r.upcoming.length) {
+      list.replaceChildren(h('div', { class: 'row' }, h('div', { class: 'grow' }, h('b', {}, 'Henüz liste yok'),
+        h('span', {}, 'Ekleme görevi ilk çalıştığında yaklaşan toplantıların ve kararı burada görünür; tek tek "girsin / girmesin" diyebilirsin.'))));
+      return;
+    }
+    list.replaceChildren(...r.upcoming.map((x) => {
+      const seg = h('div', { class: 'seg mini' });
+      const paint = () => seg.replaceChildren(...[['auto', 'Kural'], ['add', 'Girsin'], ['skip', 'Girmesin']].map(([v, n]) => h('button', {
+        type: 'button', class: (ov[x.id] || 'auto') === v ? 'active' : '',
+        onclick: async () => { const prev = ov[x.id]; if (v === 'auto') delete ov[x.id]; else ov[x.id] = v; paint();
+          try { await send(`/api/meetings/${encodeURIComponent(x.id)}`, 'PUT', { choice: v }); } catch { if (prev) ov[x.id] = prev; else delete ov[x.id]; paint(); } },
+      }, n)));
+      paint();
+      const when = x.start ? new Date(x.start).toLocaleString('tr-TR', { weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+      return h('div', { class: 'row' }, h('div', { class: 'grow' }, h('b', {}, x.title),
+        h('span', {}, [when, MEET_DECISION[x.decision] || x.decision, x.reason].filter(Boolean).join(' · '))), seg);
+    }));
+  }).catch((e) => list.replaceChildren(h('div', { class: 'row' }, h('div', { class: 'grow' }, h('span', {}, e.message)))));
+  return h('div', {},
+    h('div', { class: 'group' },
+      h('div', { class: 'row' }, h('div', { class: 'grow' }, h('b', {}, 'Toplantılara Claude katılsın ve not alsın'),
+        h('span', {}, 'Claude Desktop\'taki görev takvimine bakar, kurala uyan Google Meet toplantılarında Claude Meetings\'te Claude\'u ekler; toplantı bitince kararlar rehbere gelir. Kapatırsan iki görev de hiçbir şey yapmaz.')), sw),
+      words('include', 'Başlıkta geçerse', 'Desk-Check, Grooming, Refinement'),
+      words('exclude', 'Hariç', 'Daily, Standup, Birebir')),
+    h('div', { class: 'group-foot' }, 'Jira iş anahtarı ya da bir rehberin konusu geçen toplantılar da eklenir. Dış katılımcısı olan toplantılara Claude eklenmez.'),
+    h('div', { class: 'group-title' }, 'Yaklaşan toplantılar'), list, runInfo);
+}
+
 function openSettings() {
   const d = draftFrom(state.config);
   const before = state.config.accent;
@@ -529,6 +575,7 @@ function openSettings() {
     h('div', { class: 'group-title' }, 'Jira'), jiraSection(d),
     h('div', { class: 'group-title' }, 'Sen kimsin'), profileSection(d),
     h('div', { class: 'group-title' }, 'Kaynaklar'), sourcesSection(d),
+    h('div', { class: 'group-title' }, 'Toplantılar'), meetingsSection(d),
     h('div', { class: 'group-title' }, 'Hata kaydı'), bugSection(d),
     h('div', { class: 'group-title' }, 'Simülatörde koşu'), runSection(d),
     h('div', { class: 'group-title' }, 'Görünüm'), lookSection(d),
@@ -1946,6 +1993,229 @@ function openBatchRunSheet({ g, frame, platform, title, items }) {
   [h('button', { class: 'btn link sm', type: 'button', onclick: () => { stop = true; if (current) send(`/api/runs/${current}/cancel`, 'POST').catch(() => {}); closeSheet(); } }, 'Kapat'), stopBtn, startBtn]);
 }
 
+// ---- Kokpit ------------------------------------------------------------------------------
+// Test ortamının uyarı paneli: üstte ışıklar (yeşil/sarı/kırmızı), altta ayrıntı. Cihazda bir şey açmak yalnızca tıklayınca.
+
+const PL = { android: 'Android', ios: 'iOS' };
+const lampState = (x) => (x == null ? 'off' : x === true ? 'ok' : x === false ? 'bad' : x);
+
+function cockpitLinksSheet(onSaved) {
+  const c = JSON.parse(JSON.stringify(state.config.cockpit || { deeplinks: [], endpoints: [] }));
+  const err = h('div', {});
+  const editor = (key, title, ph, hint) => {
+    const box = h('div', { class: 'group' });
+    const paint = () => box.replaceChildren(
+      ...c[key].map((x, i) => {
+        const n = h('input', { class: 'bare', placeholder: 'Ad', value: x.name, oninput: () => { x.name = n.value; } });
+        const u = h('input', { class: 'bare mono', placeholder: ph, value: x.url, spellcheck: 'false', oninput: () => { x.url = u.value.trim(); } });
+        return h('div', { class: 'row' }, h('div', { style: 'width:150px;flex:none' }, n), h('div', { class: 'grow' }, u),
+          h('button', { class: 'btn danger sm', type: 'button', onclick: () => { c[key].splice(i, 1); paint(); } }, 'Sil'));
+      }),
+      h('div', { class: 'row' }, h('div', { class: 'grow' }, h('span', {}, hint)),
+        h('button', { class: 'btn plain sm', type: 'button', onclick: () => { c[key].push({ name: '', url: '' }); paint(); } }, 'Ekle')));
+    paint();
+    return h('div', {}, h('div', { class: 'group-title' }, title), box);
+  };
+  const save = h('button', { class: 'btn sm', type: 'button', onclick: async () => {
+    save.disabled = true;
+    try { applyConfig(await send('/api/settings', 'PUT', { cockpit: c })); closeSheet(); onSaved(); }
+    catch (e) { err.replaceChildren(h('div', { class: 'msg bad' }, e.message)); save.disabled = false; }
+  } }, 'Kaydet');
+  openSheet('Kokpit bağlantıları', h('div', {},
+    editor('deeplinks', 'Deeplink\'ler', 'uygulama://urun/123 ya da https://site.com/kampanya', 'Kokpitte "Android\'de aç / iOS\'ta aç" ile cihazda denenir. https bağlantıları için App Links ve Universal Links dosyası da denetlenir.'),
+    editor('endpoints', 'Ayakta olması gereken adresler', 'https://api.sirketin.com/health', 'Kokpit her açıldığında yalnızca GET isteği atılır; 400 ve üstü ya da 10 sn yanıtsızlık kırmızı yanar. Token ya da gizli bilgi içeren adres girme.'),
+    err), [h('button', { class: 'btn link sm', type: 'button', onclick: closeSheet }, 'Vazgeç'), save]);
+}
+
+function showCockpit() {
+  state.current = null;
+  if (location.hash !== '#kokpit') history.replaceState(null, '', '#kokpit');
+  document.querySelectorAll('.item').forEach((el) => el.classList.remove('active'));
+  const cfg = state.config;
+  const lamps = {};
+  const panel = h('div', { class: 'ann' });
+  const LAMPS = [
+    ['android', 'Android'], ['ios', 'iOS'], ['version', 'Sürüm'], ['crash', 'Çökme'], ['links', 'App Links'], ['deeplinks', 'Deeplink'],
+    ['endpoints', 'Adresler'], ['claude', 'Claude Code'], ['jira', 'Jira'], ['firebase', 'Firebase'], ['tools', 'Cihaz araçları'], ['meetings', 'Toplantılar'],
+  ];
+  for (const [k, n] of LAMPS) {
+    lamps[k] = h('button', { type: 'button', class: 'lamp off', onclick: () => document.getElementById(`cp-${k}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }) },
+      h('b', {}, n), h('span', {}, '…'));
+    panel.append(lamps[k]);
+  }
+  const setLamp = (k, st, text) => { lamps[k].className = `lamp ${st}`; lamps[k].querySelector('span').textContent = text; };
+
+  const attn = h('div', { class: 'group' }, h('div', { class: 'row' }, h('span', { class: 'muted' }, 'Bakılıyor…')));
+  const appBox = h('div', { class: 'cp-cols' });
+  const dlBox = h('div', { class: 'group' });
+  const epBox = h('div', { class: 'group' });
+  const assocBox = h('div', { class: 'group' });
+  const toolBox = h('div', { class: 'group' });
+  const stamp = h('span', { class: 'muted' });
+  const section = (id, title, ...kids) => h('section', { id: `cp-${id}`, class: 'cp-sec' }, h('div', { class: 'group-title' }, title), ...kids);
+  const row = (st, name, detail, ...right) => h('div', { class: 'row' }, h('span', { class: `dot ${st}` }), h('div', { class: 'grow' }, h('b', {}, name), detail ? h('span', {}, detail) : null), ...right);
+  const dotOf = (x) => (x?.ok ? 'ok' : x?.warn ? 'warn' : x?.ok === null ? '' : 'bad');
+
+  const refresh = h('button', { class: 'btn plain sm', type: 'button', onclick: () => load() }, 'Yenile');
+  const editLinks = h('button', { class: 'btn plain sm', type: 'button', onclick: () => cockpitLinksSheet(() => showCockpit()) }, 'Bağlantıları düzenle');
+  $('#main').replaceChildren(h('div', { class: 'wrap wide cockpit' },
+    h('div', { class: 'cp-head' }, h('div', {}, h('h1', {}, 'Kokpit'), stamp), h('div', { class: 'bar-actions' }, editLinks, refresh)),
+    panel,
+    section('attn', 'Dikkat isteyenler', attn),
+    section('app', 'Test edilen uygulama', appBox),
+    section('deeplinks', 'Deeplink\'ler', dlBox),
+    section('links', 'App Links ve Universal Links', assocBox),
+    section('endpoints', 'Adresler', epBox),
+    section('tools', 'qaHere ve araçlar', toolBox)));
+
+  // ---- uygulama
+  const appCard = (p, a, all) => {
+    const head = h('div', { class: 'row' }, h('div', { class: 'grow' }, h('b', { class: 'cp-pl' }, PL[p]), h('span', {}, a.appId || 'Uygulama kimliği girilmedi')));
+    if (!a.appId) return h('div', { class: 'group' }, head, row('', 'Ayarlar → Simülatörde koşu', 'Uygulama kimliğini girince bu platform denetlenir.', h('button', { class: 'btn plain sm', type: 'button', onclick: openSettings }, 'Aç')));
+    const ver = a.installed ? `${a.installed.version || '?'} (${a.installed.build || '?'})` : null;
+    const latest = a.latest && !a.latest.error ? `${a.latest.version} (${a.latest.build})` : null;
+    const same = ver && latest ? (a.installed.version === a.latest.version && a.installed.build === a.latest.build) : null;
+    const launch = h('button', { class: 'btn plain sm', type: 'button', disabled: !a.device || !a.installed, onclick: async () => {
+      launch.disabled = true; launch.textContent = 'Açılıyor…';
+      try { await send('/api/cockpit/launch', 'POST', { platform: p }); setTimeout(load, 2500); } catch (e) { launch.textContent = e.message; }
+    } }, a.running ? 'Öne getir' : 'Uygulamayı aç');
+    return h('div', { class: 'group' }, head,
+      row(a.device ? 'ok' : 'bad', p === 'ios' ? 'Simülatör' : 'Cihaz', a.device?.name || (p === 'ios' ? 'Açık simülatör yok' : 'Bağlı emülatör ya da cihaz yok')),
+      row(!a.device ? '' : a.installed ? 'ok' : 'bad', 'Kurulu sürüm', !a.device ? '—' : ver || 'Uygulama kurulu değil'),
+      row(same === true ? 'ok' : same === false ? 'warn' : '', 'Firebase\'deki son sürüm', a.latest?.error || latest || '—',
+        same === false && p === 'android' ? h('span', { class: 'val' }, 'Rehberden "Sürüm kur" ile güncelle') : null),
+      row(!a.installed ? '' : a.running ? 'ok' : 'warn', 'Çalışıyor mu', !a.installed ? '—' : a.running ? 'Açık' : 'Kapalı', a.installed && a.device ? launch : null),
+      row(a.crash ? 'bad' : a.installed ? 'ok' : '', 'Son çökme', a.crash ? `${a.crash.at ? fmtDate(a.crash.at.includes('T') ? a.crash.at : `${new Date().getFullYear()}-${a.crash.at.replace(' ', 'T')}`) : ''} ${a.crash.detail}` : a.installed ? (p === 'android' ? 'Çökme kaydı yok' : 'Son 3 günde çökme raporu yok') : '—'),
+      p === 'android' && a.appLinks?.length ? row(a.appLinks.every((x) => x.ok) ? 'ok' : 'warn', 'App Links doğrulaması',
+        a.appLinks.map((x) => `${x.domain}: ${x.ok ? 'doğrulandı' : `doğrulanmadı (${x.state})`}`).join(' · ')) : null);
+  };
+
+  // ---- deeplinks
+  const dls = cfg.cockpit?.deeplinks || [];
+  const dlResults = {};
+  const paintDeeplinks = () => {
+    if (!dls.length) {
+      dlBox.replaceChildren(row('', 'Deeplink tanımlı değil', 'Uygulamanın önemli giriş noktalarını ekle (ürün, kampanya, sepet…); kokpitten cihazda tek tıkla açılıp doğru ekrana gidip gitmediği görülür.', h('button', { class: 'btn plain sm', type: 'button', onclick: () => cockpitLinksSheet(() => showCockpit()) }, 'Ekle')));
+      setLamp('deeplinks', 'off', 'tanımlı değil');
+      return;
+    }
+    dlBox.replaceChildren(...dls.map((d, i) => {
+      const res = dlResults[i] || {};
+      const btn = (p) => h('button', { class: 'btn plain sm', type: 'button', onclick: async (e) => {
+        e.target.disabled = true; e.target.textContent = 'Açılıyor…';
+        try { res[p] = await send(`/api/cockpit/deeplinks/${i}`, 'POST', { platform: p }); }
+        catch (x) { res[p] = { ok: false, detail: x.message }; }
+        dlResults[i] = res; paintDeeplinks();
+      } }, `${PL[p]}'${p === 'ios' ? 'ta' : 'de'} aç`);
+      const outs = ['android', 'ios'].filter((p) => res[p]).map((p) => h('div', { class: 'dl-res' },
+        res[p].shot ? h('img', { src: res[p].shot, alt: `${PL[p]} ekranı`, class: 'shot' }) : null,
+        h('div', {}, h('b', { class: res[p].ok ? 'okt' : res[p].warn ? 'warnt' : 'badt' }, `${PL[p]}: ${res[p].ok ? 'açıldı' : res[p].warn ? 'yanlış yere gitti' : 'açılamadı'}`), h('span', {}, res[p].detail || ''))));
+      const st = ['android', 'ios'].some((p) => res[p] && !res[p].ok) ? 'bad' : ['android', 'ios'].some((p) => res[p]) ? 'ok' : '';
+      return h('div', { class: 'row stack' },
+        h('div', { class: 'row plain' }, h('span', { class: `dot ${st}` }), h('div', { class: 'grow' }, h('b', {}, d.name || d.url), h('span', { class: 'mono' }, d.url)), btn('android'), btn('ios')),
+        outs.length ? h('div', { class: 'dl-outs' }, ...outs) : null);
+    }));
+    const all = Object.values(dlResults).flatMap((r) => Object.values(r));
+    setLamp('deeplinks', !all.length ? 'off' : all.some((r) => !r.ok) ? 'bad' : 'ok', !all.length ? `${dls.length} tanımlı · denenmedi` : all.some((r) => !r.ok) ? `${all.filter((r) => !r.ok).length} sorunlu` : 'açılıyor');
+  };
+
+  async function load() {
+    refresh.disabled = true;
+    stamp.textContent = 'Denetleniyor…';
+    paintDeeplinks();
+    const jobs = [];
+
+    jobs.push(api('/api/health').then((hl) => {
+      state.health = hl;
+      setLamp('claude', hl.claude.ok ? 'ok' : 'bad', hl.claude.ok ? 'hazır' : 'yok');
+      setLamp('jira', !hl.jira.configured ? 'warn' : hl.jira.ok ? 'ok' : 'bad', !hl.jira.configured ? 'bağlı değil' : hl.jira.ok ? 'bağlı' : 'bağlanamadı');
+      return hl;
+    }));
+
+    jobs.push(api('/api/cockpit/app').then((a) => {
+      appBox.replaceChildren(appCard('android', a.android), appCard('ios', a.ios));
+      for (const p of ['android', 'ios']) {
+        const x = a[p];
+        setLamp(p, !x.appId ? 'off' : !x.device ? 'bad' : !x.installed ? 'bad' : x.running ? 'ok' : 'warn',
+          !x.appId ? 'ayarlı değil' : !x.device ? 'cihaz yok' : !x.installed ? 'kurulu değil' : x.running ? 'çalışıyor' : 'kapalı');
+      }
+      const mism = ['android', 'ios'].filter((p) => a[p].installed && a[p].latest && !a[p].latest.error && (a[p].installed.version !== a[p].latest.version || a[p].installed.build !== a[p].latest.build));
+      const known = ['android', 'ios'].some((p) => a[p].installed && a[p].latest && !a[p].latest.error);
+      setLamp('version', !known ? 'off' : mism.length ? 'warn' : 'ok', !known ? 'karşılaştırılamadı' : mism.length ? `${mism.map((p) => PL[p]).join(', ')} eski` : 'güncel');
+      const crashed = ['android', 'ios'].filter((p) => a[p].crash);
+      setLamp('crash', crashed.length ? 'bad' : (a.android.installed || a.ios.installed) ? 'ok' : 'off', crashed.length ? crashed.map((p) => PL[p]).join(', ') : 'yok');
+      const al = a.android.appLinks || [];
+      return al;
+    }).catch((e) => { appBox.replaceChildren(h('div', { class: 'msg bad' }, e.message)); return []; }));
+
+    const appLinksJob = jobs[1];
+    jobs.push(Promise.all([appLinksJob, dls.some((d) => /^https:/i.test(d.url)) ? api('/api/cockpit/associations') : Promise.resolve({ domains: [] })]).then(([al, r]) => {
+      const rows = r.domains.map((d) => h('div', { class: 'row stack' }, h('b', { class: 'mono' }, d.host),
+        row(dotOf(d.android), 'Android · assetlinks.json', d.android.detail), row(dotOf(d.ios), 'iOS · apple-app-site-association', d.ios.detail)));
+      const unverified = al.filter((x) => !x.ok);
+      const bad = r.domains.some((d) => d.android.ok === false || d.ios.ok === false) || unverified.length;
+      assocBox.replaceChildren(...(rows.length ? rows : [row('', 'Denetlenecek https bağlantısı yok', 'https ile başlayan deeplink eklersen sitenin uygulamayı tanıyıp tanımadığı burada görünür.')]),
+        ...(unverified.length ? [row('warn', 'Emülatörde doğrulanmamış alan adları', `${unverified.map((x) => x.domain).join(', ')}: bu adreslerdeki bağlantılar uygulama yerine tarayıcıda açılabilir.`)] : []));
+      setLamp('links', !rows.length && !al.length ? 'off' : bad ? 'warn' : 'ok', !rows.length && !al.length ? 'yok' : bad ? 'eksik var' : 'tamam');
+    }).catch(() => setLamp('links', 'off', '—')));
+
+    const eps = cfg.cockpit?.endpoints || [];
+    if (!eps.length) {
+      epBox.replaceChildren(row('', 'Adres tanımlı değil', 'Uygulamanın bağlı olduğu servislerin sağlık adreslerini ekle (ör. https://api.sirketin.com/health).', h('button', { class: 'btn plain sm', type: 'button', onclick: () => cockpitLinksSheet(() => showCockpit()) }, 'Ekle')));
+      setLamp('endpoints', 'off', 'tanımlı değil');
+    } else {
+      const rows = eps.map((e) => row('', e.name || e.url, 'Bakılıyor…'));
+      epBox.replaceChildren(...rows);
+      jobs.push(Promise.all(eps.map((e, i) => send(`/api/cockpit/endpoints/${i}`, 'POST').catch((x) => ({ ok: false, detail: x.message })).then((r) => {
+        rows[i].replaceWith(rows[i] = row(r.ok ? (r.ms > 3000 ? 'warn' : 'ok') : 'bad', e.name || e.url,
+          `${e.name ? `${e.url} · ` : ''}${r.status ? `HTTP ${r.status}` : r.detail || 'yanıt yok'}${r.ms != null ? ` · ${r.ms} ms` : ''}`));
+        return r;
+      }))).then((rs) => {
+        const down = rs.filter((r) => !r.ok).length;
+        setLamp('endpoints', down ? 'bad' : rs.some((r) => r.ms > 3000) ? 'warn' : 'ok', down ? `${down}/${rs.length} yanıt vermiyor` : `${rs.length} ayakta`);
+      }));
+    }
+
+    jobs.push(api('/api/cockpit/tools').then((t) => {
+      const hl = state.health || {};
+      toolBox.replaceChildren(
+        row(dotOf(hl.claude), 'Claude Code', hl.claude?.detail),
+        row(hl.jira ? (!hl.jira.configured ? 'warn' : dotOf(hl.jira)) : '', 'Jira', hl.jira?.detail),
+        row(dotOf(hl.pdf), 'PDF', hl.pdf?.detail),
+        row(dotOf(t.firebase), 'Firebase App Distribution', t.firebase.detail),
+        row(dotOf(t.adb), 'Android araçları', t.adb.detail),
+        row(dotOf(t.xcode), 'Xcode simülatörü', t.xcode.detail),
+        row(dotOf(t.maestro), 'Maestro', t.maestro.detail),
+        row(t.proxyman.ok ? (t.proxyman.warn ? 'warn' : 'ok') : '', 'Proxyman', t.proxyman.detail),
+        row(!t.meetingsEnabled ? '' : dotOf(t.meetingJoin), 'Toplantıya Claude ekleme görevi', t.meetingsEnabled ? t.meetingJoin.detail : 'Ayarlardan kapalı'),
+        row(!t.meetingsEnabled ? '' : dotOf(t.meetingNotes), 'Toplantı notu görevi', t.meetingsEnabled ? t.meetingNotes.detail : 'Ayarlardan kapalı'),
+        h('div', { class: 'row' }, h('div', { class: 'grow' }, h('span', {}, 'Slack, Notion, Figma gibi kaynak bağlantıları Claude Code üzerinden denetlenir.')),
+          h('button', { class: 'btn plain sm', type: 'button', onclick: () => showStatus() }, 'Bağlantıları denetle')));
+      setLamp('firebase', t.firebase.ok ? 'ok' : 'bad', t.firebase.ok ? 'giriş var' : 'giriş gerekli');
+      const devTools = [t.adb, t.xcode, t.maestro].filter((x) => !x.ok).length;
+      setLamp('tools', devTools ? 'warn' : 'ok', devTools ? `${devTools} eksik` : 'adb · Xcode · Maestro');
+      const mt = [t.meetingJoin, t.meetingNotes];
+      setLamp('meetings', !t.meetingsEnabled ? 'off' : mt.some((x) => !x.ok && !x.warn) ? 'bad' : mt.some((x) => x.warn) ? 'warn' : 'ok',
+        !t.meetingsEnabled ? 'kapalı' : mt.some((x) => !x.ok) ? 'görev çalışmadı' : 'çalışıyor');
+      return t;
+    }).catch((e) => toolBox.replaceChildren(h('div', { class: 'msg bad' }, e.message))));
+
+    jobs.push(api('/api/cockpit/attention').then((r) => {
+      const items = r.items.sort((a, b) => ['bad', 'warn', 'info'].indexOf(a.level) - ['bad', 'warn', 'info'].indexOf(b.level));
+      const rows = items.map((x) => h('button', { type: 'button', class: 'row rowbtn', onclick: () => openIssue(x.key, x.id) },
+        h('span', { class: `dot ${x.level === 'info' ? '' : x.level}` }), h('div', { class: 'grow' }, h('b', {}, x.text), h('span', {}, [x.key, x.sub, x.extra].filter(Boolean).join(' · ')))));
+      const meets = r.meetings.map((m) => row(m.decision === 'eklendi' ? 'ok' : '', m.title,
+        `${new Date(m.start).toLocaleString('tr-TR', { weekday: 'short', hour: '2-digit', minute: '2-digit' })} · ${MEET_DECISION[m.decision] || m.decision || ''}`));
+      attn.replaceChildren(...(rows.length || meets.length ? [...rows, ...meets] : [row('ok', 'Bekleyen bir şey yok', 'Tüm rehberlerde maddeler bitmiş, bekleyen güncelleme yok.')]));
+    }).catch((e) => attn.replaceChildren(h('div', { class: 'msg bad' }, e.message))));
+
+    await Promise.allSettled(jobs);
+    stamp.textContent = `Son denetim ${new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}`;
+    refresh.disabled = false;
+  }
+  load();
+}
+
 // ---- Güncelleme ---------------------------------------------------------------------------
 
 const UPDATE_LATER = 'qaHere.updateLater';
@@ -2013,7 +2283,7 @@ async function waitForRestart(version) {
   applyConfig(await api('/api/config'));
   showWelcome();
   if (!state.config.setupDone) startOnboarding();
-  loadHealth().then(() => { if (!state.current) showWelcome(); });
+  loadHealth().then(() => { if (!state.current && !document.querySelector('.cockpit')) showWelcome(); });
   await loadList();
   if (state.config.setupDone) checkForUpdate();
   // Uygulama uzun süre açık kalır: yarım saatte bir ve pencereye dönünce (en az 10 dk arayla) yeniden bakılır.
@@ -2028,10 +2298,12 @@ async function waitForRestart(version) {
   }
   const key = (location.hash.slice(1).toUpperCase().match(/^[A-Z][A-Z0-9]+-\d+$/) || [])[0];
   if (key) openIssue(key);
+  else if (location.hash === '#kokpit' && state.config.setupDone) showCockpit();
 })();
 
 // Adres çubuğundaki anahtar elle değiştirilirse o işi aç.
 window.addEventListener('hashchange', () => {
   const key = (location.hash.slice(1).toUpperCase().match(/^[A-Z][A-Z0-9]+-\d+$/) || [])[0];
   if (key && key !== state.current) openIssue(key);
+  else if (location.hash === '#kokpit' && !document.querySelector('.cockpit')) showCockpit();
 });
