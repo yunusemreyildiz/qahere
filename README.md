@@ -214,6 +214,14 @@ Rehber üretildikten sonra Jira'da yeni yorum yazıldıysa ya da Slack'te karar 
 
 Eski sürüm durur; hata kayıtların, mockların ve sohbetler yeni sürüme taşınır.
 
+**Toplantı kararları (otomatik):** Desk check ve grooming gibi toplantıların kararları rehbere kendiliğinden gelir:
+
+1. Claude toplantıya katılıp not alır (Claude Meetings, Google Meet). Auto-join'i açmana gerek yok, o bütün toplantılara girer. Claude Desktop'taki ikinci bir zamanlanmış görev her sabah takvimine bakar, yalnızca işle ilgili toplantılarda (desk check, grooming, refinement, E2E, Jira anahtarı ya da rehber konusu geçenler; daily ve birebir hariç, dış katılımcılı olanlar hariç) claude.ai/meetings'teki **Add** düğmesine Claude in Chrome ile basar. Başka hiçbir şeye basmaz.
+2. Claude Desktop'ta bir zamanlanmış görev (ör. hafta içi saatte bir) Claude Meetings'te yeni biten toplantıları yalnızca okuyarak tarar; Jira iş anahtarı ya da bir rehberin konusu geçenlerin kararlarını, açık sorularını, aksiyonlarını ve **teste etkisini** Türkçe not olarak `data/meetings/` klasörüne yazar. Hiçbir yere bir şey göndermez.
+3. qaHere bu notları rehber üretiminde ve güncelleme denetiminde kullanır; bir işe yeni not düştüğünde otomatik denetim süreyi beklemeden çalışır ve "Güncelleme var" olarak önüne getirir.
+
+qaHere'nin arkasındaki Claude Code Claude Meetings'i doğrudan okuyamadığı için (izin yok) okuma işini Claude Desktop'taki görev yapar. Not dosyasının biçimi `lib/meetings.js`'in başında yazıyor; elle de not bırakabilirsin.
+
 **Otomatik denetim:** Rehberi açtığında, son denetimden 1 gün geçtiyse qaHere arka planda bakar; bulduğu varsa düğme **Güncelleme var (N)** olur. Önizleyip **Rehbere ekle**, **Ekleme** ya da **Sonra** dersin; onaylamadan rehbere hiçbir şey eklenmez. Aralık Ayarlar → Kaynaklar → *Rehberleri güncel tut*'tan değişir (kapalı, 6 saat, 1 gün, 3 gün). Denetim tam üretimden çok daha kısa sürer (yaklaşık 1–2 dakika) ve çok daha az kullanım hakkı harcar. Slack webhook'u kullanılmaz: qaHere yalnızca bu bilgisayarda çalıştığı için Slack'e bağlanıp yeni mesajları kendisi arar.
 
 ### Epic'te işleri tek tek bitirmek

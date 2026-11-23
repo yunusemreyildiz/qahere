@@ -216,6 +216,14 @@ If someone commented on Jira or a decision changed on Slack after the guide was 
 
 The old version stays; your bugs, mocks and chats carry over.
 
+**Meeting decisions (automatic):** decisions from desk checks, grooming sessions and the like reach the guide on their own:
+
+1. Claude joins the meeting and takes notes (Claude Meetings, Google Meet). You don't need Auto-join, which joins every meeting. A second scheduled task in Claude Desktop checks your calendar each morning and, only for work meetings (desk checks, grooming, refinement, E2E, or ones mentioning a Jira key or a guide's topic; not dailies, one-on-ones or meetings with outside attendees), clicks **Add** on claude.ai/meetings via Claude in Chrome. It clicks nothing else.
+2. A scheduled task in Claude Desktop (e.g. hourly on weekdays) scans newly ended Claude Meetings read-only; for those that mention a Jira issue key or a guide's topic it writes the decisions, open questions, action items and **impact on testing** as a note into `data/meetings/`. It sends nothing anywhere.
+3. qaHere uses these notes when generating guides and in update checks; when a new note lands for an issue, the automatic check runs without waiting for the interval and shows "Güncelleme var" (Updates available).
+
+The Claude Code that qaHere runs on can't read Claude Meetings directly (no permission), so the Claude Desktop task does the reading. The note format is described at the top of `lib/meetings.js`; you can drop a note by hand too.
+
 **Automatic check:** when you open a guide and a day has passed since the last check, qaHere looks in the background; if it finds something, the button turns into **Güncelleme var (N)** (Updates available). Preview it and choose **Rehbere ekle** (Add), **Ekleme** (Don't add) or **Sonra** (Later); nothing is added without your approval. Change the interval in Settings → Sources → *Rehberleri güncel tut* (Keep guides up to date): off, 6 hours, 1 day, 3 days. A check is much shorter than a full generation (about 1–2 minutes) and uses far less of your usage. No Slack webhook is used: since qaHere runs only on your computer, it reaches out to Slack and looks for new messages itself.
 
 ### Finishing an epic one issue at a time
