@@ -276,7 +276,7 @@
       const b = make('button', `grun-b p-${p}`);
       b.type = 'button';
       b.dataset.p = p;
-      b.title = `${g.title}: maddeleri ${p === 'ios' ? 'iOS simülatöründe' : 'Android emülatöründe'} sırayla koş`;
+      b.title = `${g.title}: maddeleri ${p === 'ios' ? 'iOS' : 'Android'} cihazda sırayla koş (simülatör ya da TestMu)`;
       b.innerHTML = PL[p].icon;
       b.append(make('span', '', '▶'));
       b.addEventListener('click', (e) => { e.stopPropagation(); runGroup(g, p); });
@@ -287,6 +287,13 @@
   const runBoxes = [];
   if (kontrolSec) for (const g of groupsOf(kontrolSec.el)) if (g.h3 && g.items.length) { const bx = runButtons(g); g.h3.append(bx); runBoxes.push(bx); }
   for (const o of orderBadges) { const bx = runButtons(o.g); o.li.append(bx); runBoxes.push(bx); }
+  // Araç çubuğundaki "Cihazda koş": şu anki işi (yoksa açık maddesi olan ilk grubu) koşturur.
+  addEventListener('message', (e) => {
+    if (e.source !== parent || e.data?.qa !== 'runCurrent' || !ALL.includes(e.data.platform)) return;
+    const all = kontrolSec ? groupsOf(kontrolSec.el) : [];
+    const g = currentTask() || all.find((x) => x.items.some(isOpen)) || all[0];
+    if (g) runGroup(g, e.data.platform);
+  });
   // Firebase'deki sürümler: uygulama iş anahtarlarına göre gönderir; iş başlıklarında, Test sırasında ve kartta görünür.
   const buildTargets = [...tasks.map((g) => ({ keys: g.keys, el: g.h3 })), ...orderBadges.map((o) => ({ keys: [o.li.dataset.key], el: o.li }))].filter((x) => x.el);
   parent.postMessage({ qa: 'taskKeys', keys: [...new Set(tasks.flatMap((g) => g.keys))] }, '*');

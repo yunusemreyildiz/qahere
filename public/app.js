@@ -166,6 +166,7 @@ function showStatus(extra) {
 $('#cockpitBtn').addEventListener('click', () => showCockpit());
 $('#homeBtn').addEventListener('click', () => showWelcome());
 $('#navHome').addEventListener('click', () => showWelcome());
+$('#cloudBtn').addEventListener('click', () => showCloud());
 $('#homeBtn').addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); showWelcome(); } });
 
 // ---- Ayar bölümleri (kurulum ve Ayarlar sayfası ortak kullanır) ------------------------
@@ -176,11 +177,13 @@ function draftFrom(cfg) {
     bug: JSON.parse(JSON.stringify(cfg.bug || {})), run: JSON.parse(JSON.stringify(cfg.run || { ios: {}, android: {} })),
     profile: JSON.parse(JSON.stringify(cfg.profile || { role: '', platforms: [], boards: [] })),
     connectors: JSON.parse(JSON.stringify(cfg.connectors || {})), syncEvery: cfg.syncEvery ?? 24,
+    testmu: { username: cfg.testmu?.username || '', accessKey: '', hasKey: Boolean(cfg.testmu?.hasKey) },
     meetings: { enabled: cfg.meetings?.enabled !== false, autoAdd: cfg.meetings?.autoAdd === true, include: [...(cfg.meetings?.include || [])], exclude: [...(cfg.meetings?.exclude || [])] } };
 }
 
 async function saveDraft(d, extra = {}) {
-  const body = { workspace: d.workspace, jiraBaseUrl: d.jiraBaseUrl, jiraEmail: d.jiraEmail, projects: d.projects, sources: d.sources, model: d.model, accent: d.accent, bug: d.bug, run: d.run, profile: d.profile, connectors: d.connectors, syncEvery: d.syncEvery, meetings: d.meetings, ...extra };
+  const body = { workspace: d.workspace, jiraBaseUrl: d.jiraBaseUrl, jiraEmail: d.jiraEmail, projects: d.projects, sources: d.sources, model: d.model, accent: d.accent, bug: d.bug, run: d.run, profile: d.profile, connectors: d.connectors, syncEvery: d.syncEvery, meetings: d.meetings,
+    testmu: { username: d.testmu.username, ...(d.testmu.accessKey ? { accessKey: d.testmu.accessKey } : {}) }, ...extra };
   if (d.jiraApiToken) body.jiraApiToken = d.jiraApiToken;
   applyConfig(await send('/api/settings', 'PUT', body));
 }
@@ -578,6 +581,33 @@ function meetingsSection(d) {
     h('div', { class: 'group-title' }, 'Yaklaşan toplantılar'), list, runInfo);
 }
 
+function testmuSection(d) {
+  const t = d.testmu;
+  const result = h('div', { class: 'result' });
+  const test = h('button', { class: 'btn plain sm', type: 'button', onclick: run }, 'Bağlantıyı sına');
+  async function run() {
+    result.className = 'result wait'; result.textContent = 'Bağlanılıyor…'; test.disabled = true;
+    try {
+      const r = await send('/api/testmu/test', 'POST', { username: t.username, accessKey: t.accessKey });
+      const c = r.concurrency || {};
+      const conc = c.max_concurrency ? ` · aynı anda ${c.max_concurrency} koşu${c.running ? `, şu an ${c.running} koşuyor` : ''}` : '';
+      result.className = 'result ok'; result.replaceChildren(icon('check', 15), `Bağlandı: ${r.username}${conc}`);
+    } catch (e) { result.className = 'result bad'; result.textContent = e.message; }
+    test.disabled = false;
+  }
+  if (t.hasKey && t.username) queueMicrotask(run);
+  const user = h('input', { class: 'bare', placeholder: 'TestMu kullanıcı adın', value: t.username, autocomplete: 'off', spellcheck: 'false', oninput: () => { t.username = user.value.trim(); } });
+  const key = h('input', { class: 'bare', type: 'password', placeholder: t.hasKey ? 'Kayıtlı. Değiştirmek için yenisini yapıştır' : 'Access Key\'i yapıştır', autocomplete: 'off', spellcheck: 'false', oninput: () => { t.accessKey = key.value.trim(); } });
+  return h('div', {},
+    h('div', { class: 'group' },
+      h('label', { class: 'row' }, h('span', { class: 'lab' }, 'Kullanıcı adı'), h('div', { class: 'grow' }, user)),
+      h('label', { class: 'row' }, h('span', { class: 'lab' }, 'Erişim anahtarı'), h('div', { class: 'grow' }, key)),
+      h('div', { class: 'row' }, h('div', { class: 'grow' }, result), test)),
+    h('div', { class: 'group-foot' }, 'İkisini de ',
+      h('a', { href: 'https://accounts.lambdatest.com/security', target: '_blank', rel: 'noopener' }, 'TestMu hesap sayfasında'),
+      ' (Account Settings → Password & Security) bulursun. Yalnızca bu bilgisayarda saklanır ve yalnızca TestMu\'ya gönderilir. qaHere Firebase\'deki sürümü gerçek cihaza yükler, maddeleri orada koşar; iOS da gerçek iPhone\'da test edilebilir.'));
+}
+
 function openSettings() {
   const d = draftFrom(state.config);
   const before = state.config.accent;
@@ -595,6 +625,7 @@ function openSettings() {
     h('div', { class: 'group-title' }, 'Toplantılar'), meetingsSection(d),
     h('div', { class: 'group-title' }, 'Hata kaydı'), bugSection(d),
     h('div', { class: 'group-title' }, 'Simülatörde koşu'), runSection(d),
+    h('div', { class: 'group-title' }, 'TestMu (LambdaTest) gerçek cihazlar'), testmuSection(d),
     h('div', { class: 'group-title' }, 'Görünüm'), lookSection(d),
     h('div', { class: 'group' }, h('div', { class: 'row' }, h('div', { class: 'grow' }, h('b', {}, 'Kurulum adımları'), h('span', {}, 'İlk açılıştaki adımları yeniden göster.')),
       h('button', { class: 'btn plain sm', type: 'button', onclick: () => { closeSheet(); startOnboarding(); } }, 'Aç'))),
@@ -918,7 +949,7 @@ function showWelcome() {
   }).catch(() => guides.replaceChildren(h('p', { class: 'muted' }, 'Rehberler okunamadı.')));
 
   // ---- ortam: kokpitin özeti
-  const ENV = [['android', 'Android'], ['ios', 'iOS'], ['claude', 'Claude Code'], ['jira', 'Jira'], ['firebase', 'Firebase'], ['meet', 'Toplantı görevi']];
+  const ENV = [['android', 'Android'], ['ios', 'iOS'], ['claude', 'Claude Code'], ['jira', 'Jira'], ['firebase', 'Firebase'], ['testmu', 'TestMu'], ['meet', 'Toplantı görevi']];
   const cells = Object.fromEntries(ENV.map(([k, n]) => [k, h('li', { class: 'off' }, h('i', {}), h('span', {}, n), h('small', {}, '…'))]));
   const set = (k, st, t) => { cells[k].className = st; cells[k].querySelector('small').textContent = t; };
   env.replaceChildren(h('h2', { class: 'home-h' }, 'Ortam'), h('ul', {}, ...Object.values(cells)),
@@ -936,6 +967,8 @@ function showWelcome() {
   }).catch(() => {});
   api('/api/cockpit/tools').then((t) => {
     set('firebase', t.firebase.ok ? 'ok' : 'bad', t.firebase.ok ? 'giriş var' : 'giriş gerekli');
+    const m = t.testmu || {};
+    set('testmu', m.ok === null ? 'off' : m.ok ? 'ok' : 'bad', m.ok === null ? 'ayarlı değil' : m.ok ? (m.detail.match(/aynı anda \d+ koşu/)?.[0] || 'bağlı') : 'bağlanamadı');
     const j = t.meetingJoin;
     set('meet', !t.meetingsEnabled ? 'off' : j.ok ? 'ok' : 'warn', !t.meetingsEnabled ? 'kapalı' : j.detail.replace('Son çalışma ', ''));
   }).catch(() => {});
@@ -1113,7 +1146,7 @@ function renderGuides(key, guides, selectedId) {
       h('div', { class: 'gtitle' }, h('h2', {}, `${fmtDate(g.createdAt)} tarihli rehber`), h('div', { class: 'sub' }, stats)),
       progress,
       h('div', { class: 'acts' },
-        version, askBtn, botBtn, syncBtn,
+        version, runMenu(g, frame), askBtn, botBtn, syncBtn,
         moreMenu([kidsBtn, mocksBtn, regen,
           h('a', { class: 'btn plain sm', href: `${base}.html`, target: '_blank', rel: 'noopener', title: 'Tam rapor, düz sırayla' }, 'Yeni sekmede aç'),
           del]),
@@ -1122,9 +1155,17 @@ function renderGuides(key, guides, selectedId) {
     h('div', { class: 'gbody' }, frame, ask.el));
 }
 
+/** Rehberin şu anki işini (işaretlenmemiş maddesi olan ilk iş) seçilen platformda sırayla koşturur: simülatörde ya da TestMu gerçek cihazında. */
+function runMenu(g, frame) {
+  const ps = (g.platforms?.length ? g.platforms : ['ios', 'android']).filter((p) => p === 'ios' || p === 'android');
+  const NAME = { ios: 'iOS', android: 'Android' };
+  return moreMenu(ps.map((p) => h('button', { class: 'btn plain sm', type: 'button', title: 'Koşu penceresinde simülatör ya da TestMu gerçek cihaz seçilir',
+    onclick: () => frame.contentWindow?.postMessage({ qa: 'runCurrent', platform: p }, '*') }, `Şu anki işi ${NAME[p]}${p === 'ios' ? '\'ta' : '\'de'} koş`)), 'Cihazda koş', 'btn plain sm runbtn');
+}
+
 /** Seyrek kullanılan işlemler tek "Diğer" menüsünde; dışarı tıklayınca ya da Escape ile kapanır. */
-function moreMenu(items) {
-  const d = h('details', { class: 'more' }, h('summary', { class: 'btn plain sm' }, 'Diğer'), h('div', { class: 'menu', role: 'menu' }, ...items.filter(Boolean)));
+function moreMenu(items, label = 'Diğer', cls = 'btn plain sm') {
+  const d = h('details', { class: 'more' }, h('summary', { class: cls }, label), h('div', { class: 'menu', role: 'menu' }, ...items.filter(Boolean)));
   const close = (e) => { if (d.open && (e.type === 'keydown' ? e.key === 'Escape' : !d.contains(e.target))) d.open = false; };
   document.addEventListener('click', close);
   document.addEventListener('keydown', close);
@@ -1916,6 +1957,21 @@ function openRunSheet({ g, frame, c, platform, item, section }) {
   const out = h('div', {});
   const setNote = (cls, text) => note.replaceChildren(...(text ? [h('div', { class: `msg ${cls}` }, text)] : []));
 
+  // Nerede koşsun: bu bilgisayardaki simülatör/emülatör ya da TestMu gerçek cihazı.
+  const hasTestmu = Boolean(state.config.testmu?.hasKey);
+  let target = hasTestmu && store.get(`qahere.runTarget.${platform}`) === 'testmu' ? 'testmu' : 'local';
+  const tmBox = h('div', { class: 'tmrun' });
+  const localBox = h('div', {}, h('div', { class: 'grow' }, dev), buildSlot);
+  const cloud = testmuPicker(platform, g);
+  const seg = h('div', { class: 'seg mini' });
+  const paintTarget = () => {
+    seg.replaceChildren(...[['local', platform === 'ios' ? 'Simülatör' : 'Emülatör'], ['testmu', 'TestMu gerçek cihaz']].map(([v, n]) =>
+      h('button', { type: 'button', class: target === v ? 'active' : '', onclick: () => { target = v; store.set(`qahere.runTarget.${platform}`, v); paintTarget(); } }, n)));
+    localBox.hidden = target !== 'local'; tmBox.hidden = target !== 'testmu';
+    if (target === 'testmu' && !tmBox.childElementCount) tmBox.append(cloud.el);
+    $('#sheetBody h2') && ($('#sheetBody h2').textContent = target === 'testmu' ? `${PLN} gerçek cihazda koş (TestMu)` : platform === 'ios' ? 'iOS simülatöründe koş' : 'Android emülatöründe koş');
+  };
+
   const write = h('button', { class: 'btn plain sm', type: 'button', onclick: async () => {
     if (yaml.value.trim() && !confirm('Mevcut akış Claude\'un yazacağıyla değiştirilsin mi?')) return;
     write.disabled = true; write.textContent = 'Yazılıyor…'; setNote();
@@ -1943,10 +1999,12 @@ function openRunSheet({ g, frame, c, platform, item, section }) {
     if (!(await save()) && !confirm('Sözdizimi uyarısına rağmen koşulsun mu?')) return;
     runBtn.disabled = true; write.disabled = true; runBtn.textContent = 'Koşuyor…';
     let job;
-    try { job = await send('/api/runs', 'POST', ids); } catch (e) { setNote('bad', e.message); runBtn.disabled = false; write.disabled = false; runBtn.textContent = 'Koş'; return; }
+    const body = target === 'testmu' ? { ...ids, target, ...cloud.value() } : ids;
+    if (target === 'testmu' && !body.app) { setNote('bad', 'Önce TestMu\'da koşulacak sürümü seç ya da Firebase\'den yükle.'); runBtn.disabled = false; write.disabled = false; runBtn.textContent = 'Koş'; return; }
+    try { job = await send('/api/runs', 'POST', body); } catch (e) { setNote('bad', e.message); runBtn.disabled = false; write.disabled = false; runBtn.textContent = 'Koş'; return; }
     const log = h('pre', { class: 'runlog' });
     const stop = h('button', { class: 'btn plain sm', type: 'button', onclick: () => send(`/api/runs/${job.id}/cancel`, 'POST').catch(() => {}) }, 'Durdur');
-    out.replaceChildren(h('div', { class: 'runhead' }, h('span', { class: 'spinner' }), h('b', {}, `${PLN} üzerinde koşuyor`), stop), log);
+    out.replaceChildren(h('div', { class: 'runhead' }, h('span', { class: 'spinner' }), h('b', {}, job.target === 'testmu' ? `${job.device.name} üzerinde koşuyor` : `${PLN} üzerinde koşuyor`), stop), log);
     let from = 0;
     while (true) {
       await new Promise((r) => setTimeout(r, 1000));
@@ -1957,15 +2015,20 @@ function openRunSheet({ g, frame, c, platform, item, section }) {
     }
     runBtn.disabled = false; write.disabled = false; runBtn.textContent = 'Yeniden koş';
     const secs = Math.round((job.endedAt - job.startedAt) / 1000);
+    const where = job.target === 'testmu' ? `TestMu, ${job.device.name}` : `Maestro, ${PLN}`;
+    const links = job.video || job.sessionUrl ? h('div', { class: 'runacts' },
+      job.video ? h('a', { class: 'btn plain sm', href: job.video, target: '_blank', rel: 'noopener' }, 'Koşu videosu') : null,
+      job.sessionUrl ? h('a', { class: 'btn plain sm', href: job.sessionUrl, target: '_blank', rel: 'noopener' }, 'TestMu\'da aç') : null) : null;
     if (job.status === 'pass') {
       frame.contentWindow?.postMessage({ qa: 'set', c, platform, value: 'pass' }, '*');
-      out.replaceChildren(h('div', { class: 'msg ok' }, `Geçti (${secs} sn). Madde ${PLN} için "geçti" olarak işaretlendi.`), log);
+      out.replaceChildren(h('div', { class: 'msg ok' }, `Geçti (${secs} sn). Madde ${PLN} için "geçti" olarak işaretlendi.`), links, log);
     } else if (job.status === 'fail') {
       frame.contentWindow?.postMessage({ qa: 'set', c, platform, value: 'fail' }, '*');
       const bugBtn = h('button', { class: 'btn sm', type: 'button', onclick: () => openBugSheet({ g, frame, c, platform, item, section,
-        preset: { happened: `Otomasyon koşusunda (Maestro, ${PLN}) adım başarısız oldu:\n${job.message}`, images: job.image ? [job.image] : [] } }) }, 'Hata kaydı aç');
+        preset: { happened: `Otomasyon koşusunda (${where}) adım başarısız oldu:\n${job.message}${job.video ? `\nKoşu videosu: ${job.video}` : ''}${job.sessionUrl ? `\nTestMu oturumu: ${job.sessionUrl}` : ''}`, images: job.image ? [job.image] : [] } }) }, 'Hata kaydı aç');
       out.replaceChildren(
         h('div', { class: 'msg bad' }, h('b', {}, `Kaldı (${secs} sn).`), h('pre', { class: 'runmsg' }, job.message)),
+        links,
         job.image ? h('figure', { class: 'shot big' }, h('img', { src: `data:${job.image.type};base64,${job.image.data}`, alt: 'Koşu bittiğindeki ekran' })) : null,
         h('div', { class: 'runacts' }, bugBtn, h('span', { class: 'hint' }, 'Akış hatalıysa (yanlış kimlik gibi) yukarıda düzeltip yeniden koş; madde işaretini de elle değiştirebilirsin.')),
         log);
@@ -1976,18 +2039,76 @@ function openRunSheet({ g, frame, c, platform, item, section }) {
 
   openSheet(platform === 'ios' ? 'iOS simülatöründe koş' : 'Android emülatöründe koş', h('div', { class: 'bugform' },
     h('p', { class: 'bug-item run' }, h('span', {}, section || 'Test maddesi'), item),
-    h('div', { class: 'between' }, h('div', { class: 'grow' }, dev), write),
-    buildSlot,
+    hasTestmu ? h('div', { class: 'between' }, h('span', { class: 'hint' }, 'Nerede koşsun'), seg) : null,
+    h('div', { class: 'between' }, h('div', { class: 'grow' }, localBox, tmBox), write),
     h('label', { class: 'f' }, 'Maestro akışı', yaml),
     h('p', { class: 'hint' }, 'Akış bu madde ve platform için saklanır; sonraki koşular Claude kullanmaz. Uygulama kimliği ve ön akış Ayarlar → Simülatörde koşu bölümünden gelir.'),
     note, out,
   ), [h('button', { class: 'btn link sm', type: 'button', onclick: closeSheet }, 'Kapat'), runBtn]);
 
+  paintTarget();
   api(`/api/flows?${q}`).then((r) => {
     yaml.value = r.yaml || ''; saved = yaml.value;
     if (!r.yaml) setNote('', state.config.run?.[platform]?.appId ? 'Bu madde için henüz akış yok. "Claude yazsın" rehberdeki otomasyon kimliklerinden kısa bir akış yazar; ya da kendin yaz.'
       : `Önce Ayarlar → Simülatörde koşu bölümünde ${platform === 'ios' ? 'iOS bundle id' : 'Android paket adı'} gir.`);
   }).catch((e) => setNote('bad', e.message));
+}
+
+/**
+ * TestMu gerçek cihaz seçimi: cihaz + TestMu'daki sürüm (ya da Firebase'deki bir sürümü TestMu'ya yükle) + elle test.
+ * Seçimler platform başına hatırlanır.
+ */
+function testmuPicker(platform, g) {
+  const KEY = `qahere.testmu.${platform}`;
+  let saved = {}; try { saved = JSON.parse(store.get(KEY) || '{}'); } catch { /* yok */ }
+  const devSel = h('select', { 'aria-label': 'TestMu cihazı' }, h('option', {}, 'Cihazlar yükleniyor…'));
+  const appSel = h('select', { 'aria-label': 'Uygulama sürümü' }, h('option', {}, 'Sürümler yükleniyor…'));
+  const fbSel = h('select', { 'aria-label': 'Firebase sürümü', hidden: true });
+  const msg = h('span', { class: 'hint' });
+  const remember = () => store.set(KEY, JSON.stringify({ device: devSel.value, app: appSel.value }));
+  devSel.addEventListener('change', remember); appSel.addEventListener('change', remember);
+  const loadApps = (pick) => api(`/api/testmu/apps?platform=${platform}`).then((r) => {
+    appSel.replaceChildren(...(r.apps.length ? r.apps.map((a) => h('option', { value: a.app }, `${a.version || '?'} (${a.build || '?'}) · ${fmtDate(a.at)}`)) : [h('option', { value: '' }, 'TestMu\'da yüklü sürüm yok')]));
+    if (pick || saved.app) appSel.value = pick || saved.app;
+    if (!appSel.value && r.apps[0]) appSel.value = r.apps[0].app;
+  }).catch((e) => { appSel.replaceChildren(h('option', { value: '' }, e.message)); });
+  api(`/api/testmu/devices?platform=${platform}`).then((r) => {
+    devSel.replaceChildren(...r.devices.map((d) => h('option', { value: `${d.deviceName}|${d.platformVersion}` }, `${d.deviceName} · ${platform === 'ios' ? 'iOS' : 'Android'} ${d.platformVersion}`)));
+    if (saved.device && [...devSel.options].some((o) => o.value === saved.device)) devSel.value = saved.device;
+  }).catch((e) => devSel.replaceChildren(h('option', { value: '' }, e.message)));
+  loadApps();
+  const upload = h('button', { class: 'btn plain sm', type: 'button', onclick: async () => {
+    if (fbSel.hidden) {
+      upload.disabled = true; msg.textContent = 'Firebase sürümlerine bakılıyor…';
+      const r = await api(`/api/firebase/releases?platform=${platform}`).catch((e) => ({ releases: [], error: e.message }));
+      upload.disabled = false;
+      if (r.error || !r.releases.length) { msg.textContent = r.error || 'Firebase\'de sürüm yok.'; return; }
+      const keys = [g.key];
+      fbSel.replaceChildren(...r.releases.map((x) => h('option', { value: x.name }, `${x.version} (${x.build})${keys.some((k) => x.notes.includes(k)) ? ` · ${g.key} bu sürümde` : ''}`)));
+      const hit = r.releases.find((x) => x.notes.includes(g.key));
+      if (hit) fbSel.value = hit.name;
+      fbSel.hidden = false; upload.textContent = 'Bu sürümü TestMu\'ya yükle'; msg.textContent = '';
+      return;
+    }
+    upload.disabled = true; msg.textContent = 'TestMu sürümü Firebase\'den çekiyor; büyük dosyalarda bir iki dakika sürebilir…';
+    try {
+      const r = await send('/api/testmu/upload', 'POST', { platform, releaseName: fbSel.value });
+      await loadApps(r.app); remember();
+      msg.textContent = r.reused ? `${r.version} (${r.build}) zaten TestMu'daydı; seçildi.` : `${r.version} (${r.build}) yüklendi ve seçildi.`;
+      fbSel.hidden = true; upload.textContent = 'Firebase\'den yükle';
+    } catch (e) { msg.textContent = e.message; }
+    upload.disabled = false;
+  } }, 'Firebase\'den yükle');
+  const el = h('div', { class: 'tmpick' },
+    h('label', { class: 'f' }, 'Cihaz', devSel),
+    h('label', { class: 'f' }, 'Sürüm', h('div', { class: 'between' }, appSel, upload)),
+    fbSel, msg,
+    h('p', { class: 'hint' }, 'Hesabında aynı anda 3 oturum hakkı var. Elle test etmek için ',
+      h('a', { href: 'https://applive.lambdatest.com/', target: '_blank', rel: 'noopener' }, 'TestMu App Live'), '\'ı aç: yüklediğin sürümler orada listelenir.'));
+  return {
+    el,
+    value: () => { const [deviceName, platformVersion] = String(devSel.value).split('|'); return { device: { deviceName, platformVersion }, app: appSel.value }; },
+  };
 }
 
 /**
@@ -2103,22 +2224,40 @@ function openBatchRunSheet({ g, frame, platform, title, items }) {
   const startBtn = h('button', { class: 'btn sm', type: 'button', disabled: true }, 'Koşmaya başla');
   const stopBtn = h('button', { class: 'btn plain sm', type: 'button', hidden: true, onclick: () => { stop = true; if (current) send(`/api/runs/${current}/cancel`, 'POST').catch(() => {}); stopBtn.disabled = true; stopBtn.textContent = 'Durduruluyor…'; } }, 'Durdur');
 
+  // Nerede koşsun: bu bilgisayar ya da TestMu gerçek cihazı (tekli koşu penceresiyle aynı seçim, platform başına hatırlanır).
+  const hasTestmu = Boolean(state.config.testmu?.hasKey);
+  let target = hasTestmu && store.get(`qahere.runTarget.${platform}`) === 'testmu' ? 'testmu' : 'local';
+  let cloud = null;
+  const seg = h('div', { class: 'seg mini' });
+  const paintTarget = () => seg.replaceChildren(...[['local', platform === 'ios' ? 'Simülatör' : 'Emülatör'], ['testmu', 'TestMu gerçek cihaz']].map(([v, n]) =>
+    h('button', { type: 'button', class: target === v ? 'active' : '', disabled: !startBtn.hidden && startBtn.dataset.started === '1',
+      onclick: () => { target = v; store.set(`qahere.runTarget.${platform}`, v); paintTarget(); check(); } }, n)));
+  const where = () => (target === 'testmu' ? 'TestMu gerçek cihazda' : `${PLN} üzerinde`);
+
   // Ön kontrol: cihaz, uygulama kimliği, akışı olmayan madde sayısı.
-  (async () => {
+  const check = async () => {
+    startBtn.disabled = true;
     if (!appId) return info.replaceChildren(h('div', { class: 'msg bad' }, `Önce Ayarlar → Simülatörde koşu bölümünde ${platform === 'ios' ? 'iOS bundle id' : 'Android paket adı'} gir.`));
-    const dev = (await api('/api/devices').catch(() => ({})))[platform];
-    if (!dev) return info.replaceChildren(h('div', { class: 'msg bad' }, platform === 'ios' ? 'Açık bir iOS simülatörü yok. Simülatörü açıp pencereyi yeniden aç.' : 'Bağlı bir Android emülatörü ya da cihazı yok. Emülatörü açıp pencereyi yeniden aç.'));
+    let dev = null;
+    if (target === 'local') {
+      dev = (await api('/api/devices').catch(() => ({})))[platform];
+      if (!dev) return info.replaceChildren(h('div', { class: 'msg bad' }, platform === 'ios' ? 'Açık bir iOS simülatörü yok. Simülatörü aç ya da TestMu gerçek cihazı seç.' : 'Bağlı bir Android emülatörü ya da cihazı yok. Emülatörü aç ya da TestMu gerçek cihazı seç.'));
+    } else cloud ||= testmuPicker(platform, g);
     const flows = await Promise.all(items.map((it) => api(`/api/flows?key=${encodeURIComponent(g.key)}&guideId=${encodeURIComponent(g.id)}&c=${it.c}&platform=${platform}`).then((r) => Boolean(r.yaml)).catch(() => false)));
     items.forEach((it, i) => { it.hasFlow = flows[i]; });
     const missing = items.filter((it) => !it.hasFlow).length;
-    const build = platform === 'android' ? androidBuildRow(dev.id, null, title.match(/\b[A-Z][A-Z0-9]+-\d+\b/g) || [g.key]) : null;
-    info.replaceChildren(...(build ? [build] : []), h('p', { class: 'hint' }, `Cihaz: ${dev.name}. ${items.length} madde. `,
+    const build = target === 'testmu' ? cloud.el : platform === 'android' ? androidBuildRow(dev.id, null, title.match(/\b[A-Z][A-Z0-9]+-\d+\b/g) || [g.key]) : null;
+    info.replaceChildren(...(build ? [build] : []), h('p', { class: 'hint' }, target === 'testmu' ? `${items.length} madde, sırayla koşulur; her madde ayrı bir TestMu oturumu ve videosudur. ` : `Cihaz: ${dev.name}. ${items.length} madde. `,
       missing ? `${missing} maddenin akışı yok; Claude onları bir kez yazacak (kullanım hakkından düşer, sonraki koşular Claude kullanmaz).` : 'Bütün maddelerin akışı hazır; koşu Claude kullanmaz.'),
       h('p', { class: 'hint' }, 'Akışlar gerçek uygulamada çalışır. Gönderme, ödeme gibi geri alınamayan adım içeren maddelerin akışını önce maddenin kendi penceresinden gözden geçir.'));
     startBtn.disabled = false;
-  })();
+  };
+  paintTarget();
+  check();
 
   startBtn.onclick = async () => {
+    if (target === 'testmu' && !cloud?.value().app) return info.append(h('div', { class: 'msg bad' }, 'Önce TestMu\'da koşulacak sürümü seç ya da Firebase\'den yükle.'));
+    startBtn.dataset.started = '1'; paintTarget();
     startBtn.hidden = true; stopBtn.hidden = false; skipDone.disabled = true;
     const tally = { pass: 0, fail: 0, skip: 0, err: 0 };
     const failed = [];
@@ -2134,8 +2273,8 @@ function openBatchRunSheet({ g, frame, platform, title, items }) {
           if (d.syntaxError) { setRow(it.c, 'err', 'Akışta sözdizimi hatası; maddenin penceresinden düzelt'); tally.err++; continue; }
         }
         if (stop) break;
-        setRow(it.c, 'run', `${PLN} üzerinde koşuyor…`);
-        let job = await send('/api/runs', 'POST', ids(it.c));
+        setRow(it.c, 'run', `${where()} koşuyor…`);
+        let job = await send('/api/runs', 'POST', target === 'testmu' ? { ...ids(it.c), target, ...cloud.value() } : ids(it.c));
         current = job.id;
         while (job.status === 'running') {
           await new Promise((r) => setTimeout(r, 1500));
@@ -2157,10 +2296,12 @@ function openBatchRunSheet({ g, frame, platform, title, items }) {
       ...failed.map(({ it, job }) => h('div', { class: 'batch-fail' },
         h('b', {}, it.text.slice(0, 140)), h('pre', { class: 'runmsg' }, job.message),
         h('button', { class: 'btn plain sm', type: 'button', onclick: () => openBugSheet({ g, frame, c: it.c, platform, item: it.text, section: it.section,
-          preset: { happened: `Otomasyon koşusunda (Maestro, ${PLN}) adım başarısız oldu:\n${job.message}`, images: job.image ? [job.image] : [] } }) }, 'Hata kaydı aç'))));
+          preset: { happened: `Otomasyon koşusunda (${job.target === 'testmu' ? `TestMu, ${job.device.name}` : `Maestro, ${PLN}`}) adım başarısız oldu:\n${job.message}${job.video ? `\nKoşu videosu: ${job.video}` : ''}`, images: job.image ? [job.image] : [] } }) }, 'Hata kaydı aç'),
+        job.video ? h('a', { class: 'btn plain sm', href: job.video, target: '_blank', rel: 'noopener' }, 'Koşu videosu') : null)));
   };
 
   openSheet(`${title} · ${platform === 'ios' ? 'iOS\'ta' : 'Android\'de'} koş`, h('div', { class: 'bugform' },
+    hasTestmu ? h('div', { class: 'between' }, h('span', { class: 'hint' }, 'Nerede koşsun'), seg) : null,
     info, h('label', { class: 'only-row' }, skipDone, ' Daha önce geçmiş maddeleri atla'), list, out),
   [h('button', { class: 'btn link sm', type: 'button', onclick: () => { stop = true; if (current) send(`/api/runs/${current}/cancel`, 'POST').catch(() => {}); closeSheet(); } }, 'Kapat'), stopBtn, startBtn]);
 }
@@ -2199,6 +2340,86 @@ function cockpitLinksSheet(onSaved) {
     err), [h('button', { class: 'btn link sm', type: 'button', onclick: closeSheet }, 'Vazgeç'), save]);
 }
 
+// ---- Cloud: gerçek cihaz bulutları (TestMu; BrowserStack sırada) ----
+
+function showCloud() {
+  state.current = null;
+  setView('cloud');
+  $('#main').classList.remove('gmode');
+  if (location.hash !== '#cloud') history.replaceState(null, '', '#cloud');
+  document.querySelectorAll('.item').forEach((el) => el.classList.remove('active'));
+  const provBox = h('div', { class: 'cl-prov' }, h('p', { class: 'muted' }, 'Sağlayıcılar okunuyor…'));
+  const runBox = h('div', { class: 'group' }, h('div', { class: 'row' }, h('span', { class: 'muted' }, 'Son koşular okunuyor…')));
+  const devBox = h('div', { class: 'cp-cols' });
+  const appBox = h('div', { class: 'cp-cols' });
+  const section = (title, sub, ...kids) => h('section', { class: 'cp-sec' }, h('div', { class: 'group-title' }, title), sub ? h('p', { class: 'cl-sub' }, sub) : null, ...kids);
+  const refresh = h('button', { class: 'btn plain sm', type: 'button', onclick: () => showCloud() }, 'Yenile');
+  $('#main').replaceChildren(h('div', { class: 'wrap wide cockpit cloud' },
+    h('div', { class: 'cp-head' }, h('div', {}, h('h1', {}, 'Cloud'), h('span', { class: 'muted' }, 'Maddeleri gerçek cihazlarda koşturan bulut hizmetleri')),
+      h('div', { class: 'bar-actions' }, h('button', { class: 'btn plain sm', type: 'button', onclick: openSettings }, 'Hesap bağla'), refresh)),
+    provBox,
+    section('Son koşular', 'Hesaptaki son otomasyon oturumları. qaHere\'den başlatılanların adı "İŞ · madde n · platform" biçiminde.', runBox),
+    section('Cihazlar', 'Koşu penceresinde "TestMu gerçek cihaz" seçilince bu listeden seçilir. Telefonlar önde.', devBox),
+    section('Yüklü sürümler', 'Test edilen uygulamanın TestMu\'ya yüklenmiş sürümleri. Koşu penceresinde "Firebase\'den yükle" ile eklenir.', appBox)));
+
+  const STATUS = { passed: ['ok', 'Geçti'], completed: ['ok', 'Bitti'], failed: ['bad', 'Kaldı'], error: ['bad', 'Hata'], running: ['run', 'Koşuyor'], queued: ['warn', 'Sırada'], timeout: ['bad', 'Zaman aşımı'], idle_timeout: ['bad', 'Zaman aşımı'], stopped: ['warn', 'Durduruldu'], 'lambda error': ['bad', 'TestMu hatası'] };
+  const dur = (s) => (s >= 60 ? `${Math.floor(s / 60)} dk ${s % 60} sn` : `${s} sn`);
+
+  api('/api/cloud').then(({ providers, sessions }) => {
+    provBox.replaceChildren(...providers.map((p) => {
+      if (p.supported === false) return h('div', { class: 'cl-card soon' }, h('div', { class: 'cl-top' }, h('b', {}, p.name), h('span', { class: 'cl-state' }, 'Henüz yok')),
+        h('p', {}, 'Desteği sırada. Eklendiğinde hesabını Ayarlar\'dan bağlarsın, cihazları ve koşuları burada görürsün.'));
+      const c = p.concurrency || {};
+      const st = !p.configured ? ['off', 'Bağlı değil'] : p.ok ? ['ok', 'Bağlı'] : ['bad', 'Bağlanamadı'];
+      return h('div', { class: `cl-card ${st[0]}` },
+        h('div', { class: 'cl-top' }, h('b', {}, p.name), h('span', { class: 'cl-state' }, h('i', {}), st[1])),
+        !p.configured ? h('p', {}, 'Kullanıcı adı ve erişim anahtarını Ayarlar → TestMu\'ya gir.')
+          : !p.ok ? h('p', {}, p.error)
+          : h('div', { class: 'cl-meter' },
+            h('div', {}, h('strong', {}, String(c.running ?? c.created ?? 0)), h('span', {}, `/ ${c.max_concurrency ?? '?'} cihaz şu an kullanımda`)),
+            c.pqueued ? h('span', { class: 'muted' }, `${c.pqueued} koşu sırada`) : null),
+        p.configured ? h('div', { class: 'cl-links' },
+          h('span', { class: 'muted' }, p.username),
+          h('a', { href: 'https://appautomation.lambdatest.com/build', target: '_blank', rel: 'noopener' }, 'Otomasyon panosu'),
+          h('a', { href: 'https://applive.lambdatest.com/', target: '_blank', rel: 'noopener' }, 'App Live')) : null);
+    }));
+    const tmu = providers.find((p) => p.id === 'testmu');
+    if (!tmu?.configured || !tmu.ok) {
+      const msg = !tmu?.configured ? 'TestMu bağlanınca son koşular, cihazlar ve yüklü sürümler burada görünür.' : 'TestMu\'ya bağlanılamadı.';
+      for (const b of [runBox, devBox, appBox]) b.replaceChildren(h('p', { class: 'muted' }, msg));
+      return;
+    }
+    runBox.replaceChildren(...(sessions.length ? sessions.map((s) => {
+      const [cls, label] = STATUS[s.status] || ['', s.status || '—'];
+      return h('div', { class: 'row cl-run' },
+        h('span', { class: `dot ${cls}` }),
+        h('div', { class: 'grow' }, h('b', {}, s.name || s.build || s.id), h('span', {}, `${PL[s.platform] || s.platform} ${s.os} · ${s.device} · ${dur(s.duration)} · ${fmtDate(s.at)}`)),
+        h('span', { class: `val cl-st ${cls}` }, label),
+        s.video ? h('a', { class: 'btn plain sm', href: s.video, target: '_blank', rel: 'noopener' }, 'Video') : null,
+        s.url ? h('a', { class: 'btn plain sm', href: s.url, target: '_blank', rel: 'noopener' }, 'Oturum') : null);
+    }) : [h('div', { class: 'row' }, h('span', { class: 'muted' }, 'Henüz koşu yok. Bir rehberde "Cihazda koş"a bas, "TestMu gerçek cihaz"ı seç.'))]));
+  }).catch((e) => provBox.replaceChildren(h('p', { class: 'msg bad' }, e.message)));
+
+  const cfgApp = (p) => state.config?.run?.[p]?.appId;
+  for (const p of ['android', 'ios']) {
+    const dcol = h('div', { class: 'group' }, h('div', { class: 'row' }, h('b', { class: 'cp-pl' }, PL[p]), h('span', { class: 'muted' }, 'okunuyor…')));
+    const acol = h('div', { class: 'group' }, h('div', { class: 'row' }, h('b', { class: 'cp-pl' }, PL[p]), h('span', { class: 'muted' }, 'okunuyor…')));
+    devBox.append(dcol); appBox.append(acol);
+    api(`/api/testmu/devices?platform=${p}`).then(({ devices }) => {
+      const byName = new Map();
+      for (const d of devices) byName.set(d.deviceName, [...(byName.get(d.deviceName) || []), d.platformVersion]);
+      const rows = [...byName].map(([n, vs]) => h('div', { class: 'row' }, h('div', { class: 'grow' }, h('b', {}, n)), h('span', { class: 'val' }, [...new Set(vs)].join(', '))));
+      const head = h('div', { class: 'row' }, h('b', { class: 'cp-pl' }, PL[p]), h('span', { class: 'muted' }, `${byName.size} model`));
+      dcol.replaceChildren(head, ...rows.slice(0, 8), rows.length > 8 ? h('details', { class: 'cl-more' }, h('summary', {}, `${rows.length - 8} model daha`), ...rows.slice(8)) : null);
+    }).catch((e) => dcol.replaceChildren(h('div', { class: 'row' }, h('b', { class: 'cp-pl' }, PL[p]), h('span', { class: 'muted' }, e.message))));
+    api(`/api/testmu/apps?platform=${p}`).then(({ apps }) => {
+      const head = h('div', { class: 'row' }, h('div', { class: 'grow' }, h('b', { class: 'cp-pl' }, PL[p]), h('span', {}, cfgApp(p) || '')));
+      acol.replaceChildren(head, ...(apps.length ? apps.slice(0, 6).map((a) => h('div', { class: 'row' }, h('div', { class: 'grow' }, h('b', {}, `${a.version || '?'} (${a.build || '?'})`)), h('span', { class: 'val' }, a.at ? fmtDate(a.at.replace(' ', 'T')) : '')))
+        : [h('div', { class: 'row' }, h('span', { class: 'muted' }, 'Yüklü sürüm yok.'))]));
+    }).catch((e) => acol.replaceChildren(h('div', { class: 'row' }, h('b', { class: 'cp-pl' }, PL[p]), h('span', { class: 'muted' }, e.message))));
+  }
+}
+
 function showCockpit() {
   state.current = null;
   setView('cockpit');
@@ -2210,7 +2431,7 @@ function showCockpit() {
   const panel = h('div', { class: 'ann' });
   const LAMPS = [
     ['android', 'Android'], ['ios', 'iOS'], ['version', 'Sürüm'], ['crash', 'Çökme'], ['links', 'App Links'], ['deeplinks', 'Deeplink'],
-    ['endpoints', 'Adresler'], ['claude', 'Claude Code'], ['jira', 'Jira'], ['firebase', 'Firebase'], ['tools', 'Cihaz araçları'], ['meetings', 'Toplantılar'],
+    ['endpoints', 'Adresler'], ['claude', 'Claude Code'], ['jira', 'Jira'], ['firebase', 'Firebase'], ['testmu', 'TestMu'], ['tools', 'Cihaz araçları'], ['proxyman', 'Proxyman'], ['meetings', 'Toplantılar'],
   ];
   for (const [k, n] of LAMPS) {
     lamps[k] = h('button', { type: 'button', class: 'lamp off', onclick: () => document.getElementById(`cp-${k}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }) },
@@ -2355,6 +2576,7 @@ function showCockpit() {
         row(hl.jira ? (!hl.jira.configured ? 'warn' : dotOf(hl.jira)) : '', 'Jira', hl.jira?.detail),
         row(dotOf(hl.pdf), 'PDF', hl.pdf?.detail),
         row(dotOf(t.firebase), 'Firebase App Distribution', t.firebase.detail),
+        row(t.testmu.ok === null ? '' : dotOf(t.testmu), 'TestMu gerçek cihazlar', t.testmu.detail, t.testmu.ok === null ? h('button', { class: 'btn plain sm', type: 'button', onclick: openSettings }, 'Ayarla') : null),
         row(dotOf(t.adb), 'Android araçları', t.adb.detail),
         row(dotOf(t.xcode), 'Xcode simülatörü', t.xcode.detail),
         row(dotOf(t.maestro), 'Maestro', t.maestro.detail),
@@ -2369,6 +2591,8 @@ function showCockpit() {
         h('div', { class: 'row' }, h('div', { class: 'grow' }, h('span', {}, 'Slack, Notion, Figma gibi kaynak bağlantıları Claude Code üzerinden denetlenir.')),
           h('button', { class: 'btn plain sm', type: 'button', onclick: () => showStatus() }, 'Bağlantıları denetle')));
       setLamp('firebase', t.firebase.ok ? 'ok' : 'bad', t.firebase.ok ? 'giriş var' : 'giriş gerekli');
+      setLamp('testmu', t.testmu.ok === null ? 'off' : t.testmu.ok ? 'ok' : 'bad', t.testmu.ok === null ? 'ayarlı değil' : t.testmu.ok ? 'bağlı' : 'bağlanamadı');
+      setLamp('proxyman', t.proxyman.ok ? (t.proxyman.warn ? 'warn' : 'ok') : 'off', t.proxyman.ok ? (t.proxyman.warn ? 'kayıt kapalı' : 'kayıtta') : 'kapalı');
       const devTools = [t.adb, t.xcode, t.maestro].filter((x) => !x.ok).length;
       setLamp('tools', devTools ? 'warn' : 'ok', devTools ? `${devTools} eksik` : 'adb · Xcode · Maestro');
       const mt = [t.meetingJoin, t.meetingNotes];
@@ -2450,9 +2674,9 @@ async function waitForRestart(version) {
   $('.mark').replaceWith(mascot('mark'));
   applyConfig(await api('/api/config'));
   const startHash = location.hash;
-  if (!/^#([A-Za-z][A-Za-z0-9]+-\d+|kokpit)$/.test(startHash)) showWelcome();
+  if (!/^#([A-Za-z][A-Za-z0-9]+-\d+|kokpit|cloud)$/.test(startHash)) showWelcome();
   if (!state.config.setupDone) startOnboarding();
-  loadHealth().then(() => { if (!state.current && !document.querySelector('.cockpit, .home')) showWelcome(); });
+  loadHealth().then(() => { if (!state.current && !document.querySelector('.cockpit, .home, .cloud')) showWelcome(); });
   await loadList();
   if (state.config.setupDone) checkForUpdate();
   // Uygulama uzun süre açık kalır: yarım saatte bir ve pencereye dönünce (en az 10 dk arayla) yeniden bakılır.
@@ -2468,6 +2692,7 @@ async function waitForRestart(version) {
   const key = (startHash.slice(1).toUpperCase().match(/^[A-Z][A-Z0-9]+-\d+$/) || [])[0];
   if (key) openIssue(key);
   else if (startHash === '#kokpit' && state.config.setupDone) showCockpit();
+  else if (startHash === '#cloud' && state.config.setupDone) showCloud();
   else if (startHash && !document.querySelector('.home')) showWelcome();
 })();
 
@@ -2476,4 +2701,5 @@ window.addEventListener('hashchange', () => {
   const key = (location.hash.slice(1).toUpperCase().match(/^[A-Z][A-Z0-9]+-\d+$/) || [])[0];
   if (key && key !== state.current) openIssue(key);
   else if (location.hash === '#kokpit' && !document.querySelector('.cockpit')) showCockpit();
+  else if (location.hash === '#cloud' && !document.querySelector('.cloud')) showCloud();
 });

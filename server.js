@@ -24,6 +24,8 @@ import { proposeUpdate, saveUpdatedVersion, opCount, autoCheck, isAutoRunning } 
 import { screenshot, devices } from './lib/device.js';
 import { appStatus, launchApp, openDeeplink, checkEndpoint, checkAssociations, toolsStatus, attention } from './lib/cockpit.js';
 import { meetingsOverview } from './lib/meetings.js';
+import { testConnection as testmuTest, uploadFromFirebase, recentSessions } from './lib/testmu.js';
+import { startCloudRun, getCloudRun, publicCloudRun, cancelCloudRun, listDevices, listApps } from './lib/cloudrun.js';
 import { setClaudeInMeeting, recordResult, autoJoinTick, joinBusy } from './lib/meetjoin.js';
 import { readFlow, saveFlow, draftFlow, startRun, getRun, publicRun, cancelRun, activeRun } from './lib/runner.js';
 
@@ -465,13 +467,18 @@ app.post('/api/flows/draft', wrap(async (req, res) => {
   const a = flowArgs(req.body);
   res.json(await draftFlow({ ...a, item: req.body.item, section: req.body.section }));
 }));
-app.post('/api/runs', wrap(async (req, res) => res.json(await startRun(flowArgs(req.body)))));
+app.post('/api/runs', wrap(async (req, res) => res.json(req.body?.target === 'testmu'
+  ? await startCloudRun({ ...flowArgs(req.body), device: req.body.device, app: req.body.app })
+  : await startRun(flowArgs(req.body)))));
 app.get('/api/runs/:id', (req, res) => {
+  const from = Number(req.query.from) || 0;
   const job = getRun(req.params.id);
-  if (!job) return res.status(404).json({ error: 'Koşu bulunamadı.' });
-  res.json(publicRun(job, { from: Number(req.query.from) || 0 }));
+  if (job) return res.json(publicRun(job, { from }));
+  const cloud = getCloudRun(req.params.id);
+  if (cloud) return res.json(publicCloudRun(cloud, { from }));
+  res.status(404).json({ error: 'Koşu bulunamadı.' });
 });
-app.post('/api/runs/:id/cancel', (req, res) => res.json({ ok: cancelRun(req.params.id) }));
+app.post('/api/runs/:id/cancel', (req, res) => res.json({ ok: cancelRun(req.params.id) || cancelCloudRun(req.params.id) }));
 
 // Firebase App Distribution → Android emülatörüne kurulum (koşudan önce doğru sürüm).
 app.get('/api/firebase/android', wrap(async (req, res) => {
@@ -480,6 +487,11 @@ app.get('/api/firebase/android', wrap(async (req, res) => {
   if (!user.loggedIn) return res.json({ user, installed, error: 'Firebase\'e giriş yapılmamış. Terminalde bir kez "firebase login" çalıştır.' });
   try { res.json({ user, installed, ...(await listReleases()) }); }
   catch (e) { res.json({ user, installed, error: e.message }); }
+}));
+app.get('/api/firebase/releases', wrap(async (req, res) => {
+  const p = req.query.platform === 'ios' ? 'ios' : 'android';
+  if (!(await firebaseUser()).loggedIn) return res.json({ releases: [], error: 'Firebase\'e giriş yapılmamış. Terminalde bir kez "firebase login" çalıştır.' });
+  try { res.json(await listReleases(20, p)); } catch (e) { res.json({ releases: [], error: e.message }); }
 }));
 // İş anahtarları → Android/iOS'ta işin geldiği sürümler (sürüm notlarından).
 app.get('/api/firebase/builds', wrap(async (req, res) => {
@@ -499,6 +511,25 @@ app.post('/api/firebase/install', wrap(async (req, res) => {
 
 // Açık simülatörden ya da emülatörden ekran görüntüsü (yerel komutlar; dışarıya bir şey gitmez).
 app.post('/api/screenshot', wrap(async (req, res) => res.json(await screenshot(req.body?.platform))));
+
+app.post('/api/testmu/test', wrap(async (req, res) => res.json(await testmuTest(req.body || {}))));
+const plat = (p) => { if (!['ios', 'android'].includes(p)) throw Object.assign(new Error('Platform ios ya da android olmalı.'), { status: 400 }); return p; };
+app.get('/api/testmu/devices', wrap(async (req, res) => res.json({ devices: await listDevices(plat(req.query.platform)) })));
+app.get('/api/testmu/apps', wrap(async (req, res) => res.json({ apps: await listApps(plat(req.query.platform)) })));
+// Cloud ekranı: bulut cihaz sağlayıcıları (şimdilik TestMu) ve hesaptaki son koşular. Anahtar dönmez.
+app.get('/api/cloud', wrap(async (_req, res) => {
+  const t = getSettings().testmu;
+  const testmu = { id: 'testmu', name: 'TestMu AI', configured: Boolean(t.username && t.accessKey), username: t.username || '' };
+  let sessions = [];
+  if (testmu.configured) {
+    const [conn, ses] = await Promise.allSettled([testmuTest(), recentSessions(15)]);
+    if (conn.status === 'fulfilled') Object.assign(testmu, { ok: true, concurrency: conn.value.concurrency || null });
+    else Object.assign(testmu, { ok: false, error: conn.reason.message });
+    if (ses.status === 'fulfilled') sessions = ses.value;
+  }
+  res.json({ providers: [testmu, { id: 'browserstack', name: 'BrowserStack', supported: false }], sessions });
+}));
+app.post('/api/testmu/upload', wrap(async (req, res) => res.json(await uploadFromFirebase(plat(req.body?.platform), String(req.body?.releaseName || '')))));
 
 // Kokpit: test ortamının sağlığı. Yavaş denetimler ayrı uçlarda; cihazda bir şey açmak yalnızca POST ile (kullanıcı tıklar).
 app.get('/api/cockpit/app', wrap(async (_req, res) => res.json(await appStatus())));
