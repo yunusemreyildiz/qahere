@@ -98,14 +98,14 @@ function applyConfig(cfg) {
 // ---- Durum ------------------------------------------------------------------------
 
 async function loadHealth() {
-  const dot = $('#statusBtn .dot');
+  const dot = $('#cockpitBtn .dot');
   try {
     const hl = await api('/api/health');
     state.health = hl;
     const bad = !hl.claude.ok || (hl.jira.configured && !hl.jira.ok);
     const warn = !hl.jira.configured || !hl.pdf.ok;
     dot.className = `dot ${bad ? 'bad' : warn ? 'warn' : 'ok'}`;
-    $('#statusText').textContent = !hl.claude.ok ? 'Claude Code bulunamadı' : hl.jira.configured && !hl.jira.ok ? 'Jira\'ya bağlanılamadı' : !hl.jira.configured ? 'Jira bağlı değil' : 'Hazır';
+    $('#statusText').textContent = !hl.claude.ok ? 'Claude Code yok' : hl.jira.configured && !hl.jira.ok ? 'Jira hatası' : '';
   } catch {
     dot.className = 'dot bad';
     $('#statusText').textContent = 'Sunucuya ulaşılamıyor';
@@ -163,8 +163,10 @@ function showStatus(extra) {
     extra ? h('div', { class: 'group-foot' }, 'Bir kaynak "Giriş gerekiyor" diyorsa terminalde claude yazıp /mcp ile giriş yap. Atlassian bağlantısı yalnızca Jira token\'ı girilmediyse gerekir.') : null,
   ), [h('button', { class: 'btn sm', type: 'button', onclick: closeSheet }, 'Bitti')]);
 }
-$('#statusBtn').addEventListener('click', () => showStatus());
 $('#cockpitBtn').addEventListener('click', () => showCockpit());
+$('#homeBtn').addEventListener('click', () => showWelcome());
+$('#navHome').addEventListener('click', () => showWelcome());
+$('#homeBtn').addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); showWelcome(); } });
 
 // ---- Ayar bölümleri (kurulum ve Ayarlar sayfası ortak kullanır) ------------------------
 
@@ -784,20 +786,164 @@ $('#searchForm').addEventListener('submit', async (ev) => {
 
 const wrap = (...kids) => h('div', { class: 'wrap' }, ...kids);
 
+// ---- Ana ekran -------------------------------------------------------------------------------
+// Sabah açılan ekran: sıradaki toplantı (Claude katılacak mı), sürdürdüğün rehberler, ortamın durumu, yaklaşan toplantılar.
+
+const dayName = (d) => d.toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long' });
+const hhmm = (d) => d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+function relDay(d) {
+  const a = new Date(); a.setHours(0, 0, 0, 0);
+  const b = new Date(d); b.setHours(0, 0, 0, 0);
+  const n = Math.round((b - a) / 86400_000);
+  return n === 0 ? 'Bugün' : n === 1 ? 'Yarın' : d.toLocaleDateString('tr-TR', { weekday: 'long' });
+}
+function untilText(d) {
+  const min = Math.round((d - Date.now()) / 60_000);
+  if (min <= 0 && min > -60) return 'Şu an sürüyor';
+  if (min < 60) return `${min} dakika sonra`;
+  const hrs = Math.floor(min / 60);
+  if (hrs < 24) return `${hrs} saat ${min % 60 ? `${min % 60} dakika ` : ''}sonra`;
+  return `${relDay(d)} ${hhmm(d)}`;
+}
+
+// Üst çubuktaki gezinme: hangi ekrandaysan o işaretli (bir iş açıkken ikisi de değil).
+function setView(v) {
+  document.querySelectorAll('.topnav button').forEach((b) => b.classList.toggle('active', b.dataset.view === v));
+  document.querySelectorAll('.topnav button').forEach((b) => b.setAttribute('aria-current', b.dataset.view === v ? 'page' : 'false'));
+}
+
 function showWelcome() {
   state.current = null;
+  setView('home');
+  $('#main').classList.remove('gmode');
+  if (location.hash) history.replaceState(null, '', location.pathname + location.search);
+  document.querySelectorAll('.item').forEach((el) => el.classList.remove('active'));
   const cfg = state.config;
   const hl = state.health;
-  $('#main').replaceChildren(wrap(h('div', { class: 'hero' }, h('div', { class: 'hero-in' },
-    h('h1', {}, 'Bir iş seç'),
-    h('p', {}, 'Soldan bir epic\'e ya da hataya tıkla, ya da anahtarını yaz. Test etmeden önce okunacak rehber birkaç dakikada hazır olur.'),
-    hl && !hl.claude.ok ? h('div', { class: 'callout' }, h('div', {}, h('b', {}, 'Claude Code bulunamadı'), h('span', {}, 'Rehber üretimi onsuz çalışmaz.')), h('button', { class: 'btn sm', type: 'button', onclick: startOnboarding }, 'Kurulumu aç')) : null,
-    !cfg.jiraConfigured ? h('div', { class: 'callout' }, h('div', {}, h('b', {}, 'Jira bağlı değil'), h('span', {}, 'Epic listesi ve başlıkla arama için bağla.')), h('button', { class: 'btn sm', type: 'button', onclick: openSettings }, 'Bağla')) : null,
-  ))));
+  const notice = [];
+  if (hl && !hl.claude.ok) notice.push(h('div', { class: 'callout' }, h('div', {}, h('b', {}, 'Claude Code bulunamadı'), h('span', {}, 'Rehber üretimi onsuz çalışmaz.')), h('button', { class: 'btn sm', type: 'button', onclick: startOnboarding }, 'Kurulumu aç')));
+  if (!cfg.jiraConfigured) notice.push(h('div', { class: 'callout' }, h('div', {}, h('b', {}, 'Jira bağlı değil'), h('span', {}, 'Epic listesi ve başlıkla arama için bağla.')), h('button', { class: 'btn sm', type: 'button', onclick: openSettings }, 'Bağla')));
+
+  const ticket = h('section', { class: 'ticket is-loading', 'aria-label': 'Sıradaki toplantı' }, h('div', { class: 'tk-main' }, h('span', { class: 'tk-kicker' }, 'Sıradaki toplantı'), h('div', { class: 'tk-time' }, '··:··')));
+  const env = h('section', { class: 'env', 'aria-label': 'Ortam' });
+  const guides = h('div', { class: 'glist' });
+  const agenda = h('div', { class: 'agenda' });
+
+  $('#main').replaceChildren(h('div', { class: 'wrap home' },
+    h('header', { class: 'home-head' }, h('h1', {}, dayName(new Date())),
+      h('p', {}, 'Bir işe başlamak için soldan seç ya da anahtarını yaz.')),
+    ...notice,
+    h('div', { class: 'home-top' }, ticket, env),
+    h('div', { class: 'home-cols' },
+      h('section', {}, h('h2', { class: 'home-h' }, 'Rehberlerin'), guides),
+      h('section', {}, h('h2', { class: 'home-h' }, 'Yaklaşan toplantılar'), agenda))));
+
+  // ---- toplantılar
+  api('/api/meetings').then((r) => {
+    const now = Date.now();
+    const list = r.upcoming.map((m) => ({ ...m, at: new Date(m.start) })).filter((m) => !Number.isNaN(+m.at) && +m.at > now - 60 * 60_000).sort((a, b) => a.at - b.at);
+    const auto = r.settings.autoAdd;
+    const withClaude = list.find((m) => m.decision === 'eklendi' || m.decision === 'eklenecek');
+    const next = list[0];
+    ticket.classList.remove('is-loading');
+    if (!r.settings.enabled) {
+      ticket.replaceChildren(h('div', { class: 'tk-main' }, h('span', { class: 'tk-kicker' }, 'Toplantılar kapalı'),
+        h('p', { class: 'tk-empty' }, 'Claude toplantılara katılmıyor ve not almıyor.'), h('button', { class: 'btn plain sm', type: 'button', onclick: openSettings }, 'Ayarlardan aç')));
+    } else if (!next) {
+      ticket.replaceChildren(h('div', { class: 'tk-main' }, h('span', { class: 'tk-kicker' }, 'Sıradaki toplantı'),
+        h('p', { class: 'tk-empty' }, r.joinRunAt ? 'Bugün ve yarın için takviminde toplantı yok.' : 'Takvimin henüz okunmadı. Claude Desktop\'taki "qaHere yaklaşan toplantılar" görevi hafta içi saatte bir bakar.')));
+    } else {
+      const stub = (m) => {
+        const box = h('div', { class: `tk-stub st-${m.decision || 'yok'}` });
+        const say = (b, t, ...rest) => box.replaceChildren(mascot('tk-mascot'), h('b', {}, b), t ? h('span', {}, t) : null, ...rest);
+        if (m.decision === 'eklendi') say('Claude katılacak', 'Toplantı bitince kararlar rehbere gelir.');
+        else if (m.decision === 'eklenecek' && +m.at < Date.now() - 15 * 60_000) { say('Claude eklenmedi', 'Toplantı başlayalı 15 dakikadan fazla oldu; qaHere başlamış toplantıya eklemez.'); box.className = 'tk-stub st-gecti'; }
+        else if (m.decision === 'eklenecek') {
+          if (auto) say('Claude eklenecek', 'qaHere birkaç dakika içinde ekler.');
+          else {
+            const add = h('button', { class: 'btn sm', type: 'button', onclick: async () => {
+              add.disabled = true; add.textContent = 'Ekleniyor…';
+              try { const x = await send(`/api/meetings/${encodeURIComponent(m.id)}/join`, 'POST', { action: 'add' }); if (x.ok) { m.decision = 'eklendi'; box.replaceWith(stub(m)); } else { add.disabled = false; add.textContent = 'Yeniden dene'; box.querySelector('span').textContent = x.detail; } }
+              catch (e) { add.disabled = false; add.textContent = 'Yeniden dene'; box.querySelector('span').textContent = e.message; }
+            } }, 'Claude\'u ekle');
+            say('Claude katılmıyor', 'Bu toplantı kurala uyuyor; eklemek senin onayınla.', add);
+          }
+        } else {
+          const want = h('button', { class: 'btn plain sm', type: 'button', onclick: async () => {
+            want.disabled = true;
+            try { await send(`/api/meetings/${encodeURIComponent(m.id)}`, 'PUT', { choice: 'add' }); m.decision = 'eklenecek'; box.replaceWith(stub(m)); } catch { want.disabled = false; }
+          } }, 'Yine de katılsın');
+          say('Claude katılmayacak', m.reason || '', want);
+        }
+        return box;
+      };
+      const main = h('div', { class: 'tk-main' },
+        h('span', { class: 'tk-kicker' }, 'Sıradaki toplantı'),
+        h('div', { class: 'tk-time' }, hhmm(next.at)),
+        h('div', { class: 'tk-when' }, untilText(next.at)),
+        h('h2', { class: 'tk-title' }, next.title),
+        withClaude && withClaude !== next ? h('p', { class: 'tk-also' }, `Claude'un katılacağı sıradaki: ${relDay(withClaude.at)} ${hhmm(withClaude.at)}, ${withClaude.title}`) : null);
+      ticket.replaceChildren(main, stub(next));
+    }
+    // gün gün liste
+    if (!list.length) { agenda.replaceChildren(h('p', { class: 'muted' }, 'Liste boş.')); return; }
+    const days = new Map();
+    for (const m of list) { const k = relDay(m.at); if (!days.has(k)) days.set(k, []); days.get(k).push(m); }
+    const LABEL = { eklendi: 'Claude katılacak', eklenecek: auto ? 'Claude eklenecek' : 'Claude eklenebilir', atlandi: 'Claude katılmayacak', kaldirildi: 'Claude çıkarıldı', hata: 'Eklenemedi' };
+    const row = (m) => h('div', { class: `ag-row st-${m.decision || 'yok'}` }, h('time', {}, hhmm(m.at)),
+      h('div', {}, h('b', {}, m.title), h('span', {}, m.decision === 'eklenecek' && +m.at < Date.now() - 15 * 60_000 ? 'Claude eklenmedi' : LABEL[m.decision] || '')));
+    agenda.replaceChildren(...[...days].map(([d, ms]) => h('div', { class: 'ag-day' }, h('h3', {}, d), ...ms.map(row))),
+      h('button', { class: 'btn link sm', type: 'button', onclick: openSettings }, 'Toplantı ayarları'));
+  }).catch(() => { ticket.classList.remove('is-loading'); ticket.replaceChildren(h('div', { class: 'tk-main' }, h('span', { class: 'tk-kicker' }, 'Sıradaki toplantı'), h('p', { class: 'tk-empty' }, 'Toplantılar okunamadı.'))); });
+
+  // ---- rehberler: her işin en son rehberi, önce yarım kalanlar
+  api('/api/guides').then(({ guides: gs }) => {
+    const latest = new Map();
+    for (const g of gs) if (!latest.has(g.key)) latest.set(g.key, g);
+    const rows = [...latest.values()].map((g) => ({ g, total: g.checkTotal || 0, done: g.checks?.length || 0, fail: g.failed?.length || 0 }))
+      .sort((a, b) => (b.fail - a.fail) || ((a.total && a.done === a.total) - (b.total && b.done === b.total)) || b.g.createdAt.localeCompare(a.g.createdAt))
+      .slice(0, 8);
+    if (!rows.length) { guides.replaceChildren(h('p', { class: 'muted' }, 'Henüz rehber yok. Soldan bir iş seçip "Rehber oluştur"a bas.')); return; }
+    guides.replaceChildren(...rows.map(({ g, total, done, fail }) => {
+      const pct = (n) => `${total ? (n / total) * 100 : 0}%`;
+      const notes = [fail ? h('em', { class: 'badt' }, `${fail} kaldı`) : null, g.pending?.count ? h('em', { class: 'warnt' }, `${g.pending.count} güncelleme`) : null].filter(Boolean);
+      return h('button', { class: 'grow-row', type: 'button', onclick: () => openIssue(g.key, g.id) },
+        h('span', { class: 'gr-key' }, g.key),
+        h('span', { class: 'gr-name' }, g.issueSummary || g.title),
+        h('span', { class: 'gr-bar', role: 'img', 'aria-label': `${total} maddeden ${done} bitti, ${fail} kaldı` },
+          h('i', { class: 'b-done', style: `width:${pct(done)}` }), h('i', { class: 'b-fail', style: `width:${pct(fail)}` })),
+        h('span', { class: 'gr-count' }, total ? `${done}/${total}` : '—'),
+        notes.length ? h('span', { class: 'gr-notes' }, ...notes) : h('span', { class: 'gr-notes' }));
+    }));
+  }).catch(() => guides.replaceChildren(h('p', { class: 'muted' }, 'Rehberler okunamadı.')));
+
+  // ---- ortam: kokpitin özeti
+  const ENV = [['android', 'Android'], ['ios', 'iOS'], ['claude', 'Claude Code'], ['jira', 'Jira'], ['firebase', 'Firebase'], ['meet', 'Toplantı görevi']];
+  const cells = Object.fromEntries(ENV.map(([k, n]) => [k, h('li', { class: 'off' }, h('i', {}), h('span', {}, n), h('small', {}, '…'))]));
+  const set = (k, st, t) => { cells[k].className = st; cells[k].querySelector('small').textContent = t; };
+  env.replaceChildren(h('h2', { class: 'home-h' }, 'Ortam'), h('ul', {}, ...Object.values(cells)),
+    h('button', { class: 'btn plain sm', type: 'button', onclick: showCockpit }, 'Kokpiti aç'));
+  api('/api/health').then((x) => {
+    set('claude', x.claude.ok ? 'ok' : 'bad', x.claude.ok ? 'hazır' : 'yok');
+    set('jira', !x.jira.configured ? 'warn' : x.jira.ok ? 'ok' : 'bad', !x.jira.configured ? 'bağlı değil' : x.jira.ok ? 'bağlı' : 'hata');
+  }).catch(() => {});
+  api('/api/cockpit/app').then((a) => {
+    for (const p of ['android', 'ios']) {
+      const x = a[p];
+      set(p, !x.appId ? 'off' : !x.device || !x.installed ? 'bad' : x.crash ? 'bad' : 'ok',
+        !x.appId ? 'ayarlı değil' : !x.device ? 'cihaz yok' : !x.installed ? 'kurulu değil' : x.crash ? 'çöktü' : `${x.installed.version || x.installed.build}`);
+    }
+  }).catch(() => {});
+  api('/api/cockpit/tools').then((t) => {
+    set('firebase', t.firebase.ok ? 'ok' : 'bad', t.firebase.ok ? 'giriş var' : 'giriş gerekli');
+    const j = t.meetingJoin;
+    set('meet', !t.meetingsEnabled ? 'off' : j.ok ? 'ok' : 'warn', !t.meetingsEnabled ? 'kapalı' : j.detail.replace('Son çalışma ', ''));
+  }).catch(() => {});
 }
 
 async function openIssue(key, guideId) {
   state.current = key;
+  setView('');
   history.replaceState(null, '', `#${key}`);
   document.querySelectorAll('.item').forEach((el) => el.classList.toggle('active', el.dataset.key === key));
   const main = $('#main');
@@ -967,12 +1113,23 @@ function renderGuides(key, guides, selectedId) {
       h('div', { class: 'gtitle' }, h('h2', {}, `${fmtDate(g.createdAt)} tarihli rehber`), h('div', { class: 'sub' }, stats)),
       progress,
       h('div', { class: 'acts' },
-        version, kidsBtn, mocksBtn, syncBtn, askBtn, botBtn, regen,
-        h('a', { class: 'btn plain sm', href: `${base}.html`, target: '_blank', rel: 'noopener', title: 'Tam rapor, düz sırayla' }, 'Yeni sekmede aç'),
-        h('a', { class: 'btn sm', href: `${base}.pdf` }, 'PDF indir'),
-        del)),
+        version, askBtn, botBtn, syncBtn,
+        moreMenu([kidsBtn, mocksBtn, regen,
+          h('a', { class: 'btn plain sm', href: `${base}.html`, target: '_blank', rel: 'noopener', title: 'Tam rapor, düz sırayla' }, 'Yeni sekmede aç'),
+          del]),
+        h('a', { class: 'btn sm', href: `${base}.pdf` }, 'PDF indir'))),
     ...denialNotes(g),
     h('div', { class: 'gbody' }, frame, ask.el));
+}
+
+/** Seyrek kullanılan işlemler tek "Diğer" menüsünde; dışarı tıklayınca ya da Escape ile kapanır. */
+function moreMenu(items) {
+  const d = h('details', { class: 'more' }, h('summary', { class: 'btn plain sm' }, 'Diğer'), h('div', { class: 'menu', role: 'menu' }, ...items.filter(Boolean)));
+  const close = (e) => { if (d.open && (e.type === 'keydown' ? e.key === 'Escape' : !d.contains(e.target))) d.open = false; };
+  document.addEventListener('click', close);
+  document.addEventListener('keydown', close);
+  d.querySelector('.menu').addEventListener('click', (e) => { if (e.target.closest('button,a') && !e.target.classList.contains('danger')) d.open = false; });
+  return d;
 }
 
 // ---- Rehberi güncelle: rehberden sonra yazılanları bul, önizle, onaylanırsa yeni sürüm ----
@@ -2044,6 +2201,8 @@ function cockpitLinksSheet(onSaved) {
 
 function showCockpit() {
   state.current = null;
+  setView('cockpit');
+  $('#main').classList.remove('gmode');
   if (location.hash !== '#kokpit') history.replaceState(null, '', '#kokpit');
   document.querySelectorAll('.item').forEach((el) => el.classList.remove('active'));
   const cfg = state.config;
@@ -2060,7 +2219,6 @@ function showCockpit() {
   }
   const setLamp = (k, st, text) => { lamps[k].className = `lamp ${st}`; lamps[k].querySelector('span').textContent = text; };
 
-  const attn = h('div', { class: 'group' }, h('div', { class: 'row' }, h('span', { class: 'muted' }, 'Bakılıyor…')));
   const appBox = h('div', { class: 'cp-cols' });
   const dlBox = h('div', { class: 'group' });
   const epBox = h('div', { class: 'group' });
@@ -2076,7 +2234,6 @@ function showCockpit() {
   $('#main').replaceChildren(h('div', { class: 'wrap wide cockpit' },
     h('div', { class: 'cp-head' }, h('div', {}, h('h1', {}, 'Kokpit'), stamp), h('div', { class: 'bar-actions' }, editLinks, refresh)),
     panel,
-    section('attn', 'Dikkat isteyenler', attn),
     section('app', 'Test edilen uygulama', appBox),
     section('deeplinks', 'Deeplink\'ler', dlBox),
     section('links', 'App Links ve Universal Links', assocBox),
@@ -2204,6 +2361,11 @@ function showCockpit() {
         row(t.proxyman.ok ? (t.proxyman.warn ? 'warn' : 'ok') : '', 'Proxyman', t.proxyman.detail),
         row(!t.meetingsEnabled ? '' : dotOf(t.meetingJoin), 'Toplantıya Claude ekleme görevi', t.meetingsEnabled ? t.meetingJoin.detail : 'Ayarlardan kapalı'),
         row(!t.meetingsEnabled ? '' : dotOf(t.meetingNotes), 'Toplantı notu görevi', t.meetingsEnabled ? t.meetingNotes.detail : 'Ayarlardan kapalı'),
+        (() => { const u = state.update; const b = h('button', { class: 'btn plain sm', type: 'button', onclick: async () => {
+          b.disabled = true; b.textContent = 'Denetleniyor…';
+          try { state.update = await api('/api/update?force=1'); if (state.update.behind) showUpdate(state.update); else { b.textContent = 'Güncel'; } } catch (e) { b.textContent = e.message; }
+        } }, 'Yeni sürümü denetle');
+        return row(!u ? '' : u.behind || u.error ? 'warn' : 'ok', 'qaHere sürümü', !u ? '—' : u.git === false ? 'git ile kurulmadı' : u.error || (u.behind ? `${u.version} · yeni sürüm var` : `${u.version || '—'} · güncel`), u?.git === false ? null : b); })(),
         h('div', { class: 'row' }, h('div', { class: 'grow' }, h('span', {}, 'Slack, Notion, Figma gibi kaynak bağlantıları Claude Code üzerinden denetlenir.')),
           h('button', { class: 'btn plain sm', type: 'button', onclick: () => showStatus() }, 'Bağlantıları denetle')));
       setLamp('firebase', t.firebase.ok ? 'ok' : 'bad', t.firebase.ok ? 'giriş var' : 'giriş gerekli');
@@ -2214,15 +2376,6 @@ function showCockpit() {
         !t.meetingsEnabled ? 'kapalı' : mt.some((x) => !x.ok) ? 'görev çalışmadı' : 'çalışıyor');
       return t;
     }).catch((e) => toolBox.replaceChildren(h('div', { class: 'msg bad' }, e.message))));
-
-    jobs.push(api('/api/cockpit/attention').then((r) => {
-      const items = r.items.sort((a, b) => ['bad', 'warn', 'info'].indexOf(a.level) - ['bad', 'warn', 'info'].indexOf(b.level));
-      const rows = items.map((x) => h('button', { type: 'button', class: 'row rowbtn', onclick: () => openIssue(x.key, x.id) },
-        h('span', { class: `dot ${x.level === 'info' ? '' : x.level}` }), h('div', { class: 'grow' }, h('b', {}, x.text), h('span', {}, [x.key, x.sub, x.extra].filter(Boolean).join(' · ')))));
-      const meets = r.meetings.map((m) => row(m.decision === 'eklendi' ? 'ok' : '', m.title,
-        `${new Date(m.start).toLocaleString('tr-TR', { weekday: 'short', hour: '2-digit', minute: '2-digit' })} · ${MEET_DECISION[m.decision] || m.decision || ''}`));
-      attn.replaceChildren(...(rows.length || meets.length ? [...rows, ...meets] : [row('ok', 'Bekleyen bir şey yok', 'Tüm rehberlerde maddeler bitmiş, bekleyen güncelleme yok.')]));
-    }).catch((e) => attn.replaceChildren(h('div', { class: 'msg bad' }, e.message))));
 
     await Promise.allSettled(jobs);
     stamp.textContent = `Son denetim ${new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}`;
@@ -2296,9 +2449,10 @@ async function waitForRestart(version) {
 (async function init() {
   $('.mark').replaceWith(mascot('mark'));
   applyConfig(await api('/api/config'));
-  showWelcome();
+  const startHash = location.hash;
+  if (!/^#([A-Za-z][A-Za-z0-9]+-\d+|kokpit)$/.test(startHash)) showWelcome();
   if (!state.config.setupDone) startOnboarding();
-  loadHealth().then(() => { if (!state.current && !document.querySelector('.cockpit')) showWelcome(); });
+  loadHealth().then(() => { if (!state.current && !document.querySelector('.cockpit, .home')) showWelcome(); });
   await loadList();
   if (state.config.setupDone) checkForUpdate();
   // Uygulama uzun süre açık kalır: yarım saatte bir ve pencereye dönünce (en az 10 dk arayla) yeniden bakılır.
@@ -2311,9 +2465,10 @@ async function waitForRestart(version) {
       h('pre', {}, h('code', {}, 'npm run desktop'))),
     [h('button', { class: 'btn sm', type: 'button', onclick: () => { store.set(REBUILD_NOTE, ''); closeSheet(); } }, 'Tamam')]);
   }
-  const key = (location.hash.slice(1).toUpperCase().match(/^[A-Z][A-Z0-9]+-\d+$/) || [])[0];
+  const key = (startHash.slice(1).toUpperCase().match(/^[A-Z][A-Z0-9]+-\d+$/) || [])[0];
   if (key) openIssue(key);
-  else if (location.hash === '#kokpit' && state.config.setupDone) showCockpit();
+  else if (startHash === '#kokpit' && state.config.setupDone) showCockpit();
+  else if (startHash && !document.querySelector('.home')) showWelcome();
 })();
 
 // Adres çubuğundaki anahtar elle değiştirilirse o işi aç.
