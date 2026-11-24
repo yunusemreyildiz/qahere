@@ -93,11 +93,7 @@ For the guide to read Slack, Notion, Confluence, Figma or Claude Docs, those con
 
 You can also type `/mcp` inside `claude` in a terminal and sign in to the same connectors there. In some companies an admin has to approve a connector first.
 
-**Proxyman (optional, macOS):** If you want the guide to read captured traffic too, add Proxyman's MCP server to Claude Code once, then turn Proxyman on under Settings → Sources:
-
-```bash
-claude mcp add -s user proxyman -- /Applications/Proxyman.app/Contents/MacOS/mcp-server
-```
+**Proxyman (optional, macOS):** If you want the guide to read captured traffic too, turn Proxyman on under Settings → Sources and press **Bağlantıları denetle** (check connections); if Claude Code doesn't have it, the **Claude'a ekle** (add to Claude) button next to it adds Proxyman's MCP server (no terminal needed). For claude.ai connectors that aren't connected, the same place shows a button to claude.ai's Connectors page.
 
 Attaching requests to bugs and setting up mocks don't need this step; qaHere talks to Proxyman directly.
 
@@ -226,7 +222,7 @@ The Claude Code that qaHere runs on can't read Claude Meetings directly (no perm
 
 **Settings → Toplantılar (Meetings):** turn the whole feature on or off and edit the rules (words that add a meeting, words that exclude it). Each time the add task runs it lists upcoming meetings and its decision here; you can set each one to "Rule · Join · Don't join". Your choice is applied on the task's next run (hourly on weekdays); if you say "Don't join" to a meeting Claude was already added to, it is removed.
 
-**TestMu (formerly LambdaTest) real devices:** enter your username and access key in Settings → TestMu. In an item's run window (and in per-task batch runs) pick **TestMu gerçek cihaz** (TestMu real device) under "Nerede koşsun" (where to run), then choose the device and build. If the build isn't there, **Firebase'den yükle** (upload from Firebase) sends the Firebase App Distribution release (Android .apk, iOS .ipa) to TestMu, so iOS can be tested on a real iPhone too. No HyperExecute needed: qaHere translates the item's Maestro flow into Appium commands and runs it on the real device. The result is marked on the item with links to the run video and the TestMu session; on failure the bug report gets the video link and a screenshot. For manual testing, your uploaded builds are listed in TestMu App Live. **Cihazda koş** (run on device) in the guide toolbar runs the current task's items in order. The **Cloud** screen in the top bar shows connected cloud providers (TestMu for now; BrowserStack is next), current device usage, recent runs (with video and session links), the device list and uploaded builds.
+**TestMu (formerly LambdaTest) real devices:** enter your username and access key in Settings → TestMu. In an item's run window (and in per-task batch runs) pick **TestMu gerçek cihaz** (TestMu real device) under "Nerede koşsun" (where to run), then choose the device and build. If the build isn't there, **Firebase'den yükle** (upload from Firebase) sends the Firebase App Distribution release (Android .apk, iOS .ipa) to TestMu, so iOS can be tested on a real iPhone too. No HyperExecute needed: qaHere translates the item's Maestro flow into Appium commands and runs it on the real device. The result is marked on the item with links to the run video and the TestMu session; on failure the bug report gets the video link and a screenshot. For manual testing, your uploaded builds are listed in TestMu App Live. **Cihazda koş** (run on device) in the guide toolbar runs the current task's items in order. In a guide, **Diğer → Test Manager'a aktar** (More → export to Test Manager) moves the checklist into TestMu Test Manager: each item becomes a test case (in a folder named after the guide, linked to the Jira issue; environment and test setup are written as preconditions), and optionally the marked results are recorded as one test run per platform. A preview comes first; exporting the same guide again creates no duplicates, only new and changed items go. The **Cloud** screen in the top bar shows connected cloud providers (TestMu and its Test Manager for now, with the same key and no extra setup; BrowserStack is next), current device usage, recent runs (with video and session links), the device list and uploaded builds.
 
 **Cockpit:** the **Kokpit** button in the top bar shows the health of your test environment on one screen. The lights at the top glow green, amber or red; click one to jump to its details.
 
@@ -264,9 +260,7 @@ One-time setup: install the Firebase CLI and sign in with the Google account you
 npm install -g firebase-tools
 ```
 
-```bash
-firebase login
-```
+Sign in from the app: **Firebase'e giriş yap** (sign in to Firebase) in the Cockpit (or anywhere a build is picked) opens Google's consent page in your browser and finishes on its own once you approve. If the sign-in expires, the same button shows up again.
 
 qaHere finds your app in your Firebase projects from the Android package name in Settings → Simulator runs. It stores no tokens; it reads the CLI sign-in. If the install fails because of a signature mismatch (e.g. installed from another channel), it asks before uninstalling, since that wipes the app's data on the emulator. App Distribution iOS builds are for real devices and can't be installed on a simulator.
 

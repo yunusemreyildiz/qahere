@@ -4,3 +4,4 @@ data/
 .DS_Store
 desktop/dist/
 desktop/home.json
+firebase-debug.log

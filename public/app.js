@@ -75,7 +75,7 @@ const SOURCES = [
   { key: 'confluence', name: 'Confluence', desc: 'Analiz, teknik tasarım ve kontrat sayfaları' },
   { key: 'figma', name: 'Figma', desc: 'İşlerde bağlantısı verilen tasarım ekranları: metinler, durumlar, akış' },
   { key: 'docs', name: 'Claude Docs', desc: 'İşlerde bağlantısı verilen claude.ai doküman ve artifact\'leri' },
-  { key: 'proxyman', name: 'Proxyman', desc: 'Yakalanan gerçek istek ve yanıtlar (kontratla karşılaştırma). Claude Code\'a bir kez eklenir: claude mcp add -s user proxyman -- /Applications/Proxyman.app/Contents/MacOS/mcp-server' },
+  { key: 'proxyman', name: 'Proxyman', desc: 'Yakalanan gerçek istek ve yanıtlar (kontratla karşılaştırma). Açıp "Bağlantıları denetle"ye bas; Claude Code\'da yoksa "Claude\'a ekle" ile qaHere ekler.' },
 ];
 const MODELS = [
   { key: 'sonnet', name: 'Sonnet', desc: 'Dengeli. Önerilen.' },
@@ -124,11 +124,25 @@ function openSheet(title, body, actions = []) {
 const closeSheet = () => $('#sheet').close();
 $('#sheet').addEventListener('click', (e) => { if (e.target === $('#sheet')) closeSheet(); });
 
-function statusRow(name, x) {
+/** Bağlı olmayan kaynak için terminalsiz çözüm: Proxyman'i qaHere ekler; claude.ai bağlantıları claude.ai'de bağlanır. */
+function connectorFix(key, x, onDone) {
+  if (!x || x.ok) return null;
+  if (key === 'proxyman') {
+    const b = h('button', { class: 'btn plain sm', type: 'button', onclick: async () => {
+      b.disabled = true; b.textContent = 'Ekleniyor…';
+      try { await send('/api/connectors/proxyman/add', 'POST', {}); b.textContent = 'Eklendi'; onDone?.(); }
+      catch (e) { b.textContent = 'Yeniden dene'; b.disabled = false; b.title = e.message; alert(e.message); }
+    } }, 'Claude\'a ekle');
+    return b;
+  }
+  return h('a', { class: 'btn plain sm', href: 'https://claude.ai/settings/connectors', target: '_blank', rel: 'noopener', title: 'claude.ai → Ayarlar → Bağlayıcılar: uygulamayı bağla ya da yeniden giriş yap, sonra burada yeniden denetle' }, x.detail === 'Giriş gerekiyor' ? 'claude.ai\'de giriş yap' : 'claude.ai\'de bağla');
+}
+
+function statusRow(name, x, fix) {
   return h('div', { class: 'row' },
     h('span', { class: `dot ${x ? (x.ok ? 'ok' : 'bad') : ''}` }),
     h('div', { class: 'grow' }, h('b', {}, name)),
-    h('div', { class: 'val' }, x?.detail || '—'));
+    h('div', { class: 'val' }, x?.detail || '—'), fix || null);
 }
 
 function showStatus(extra) {
@@ -158,9 +172,9 @@ function showStatus(extra) {
         h('div', { class: 'val' }, updText), upd?.git === false ? null : updBtn)),
     h('div', { class: 'group-title' }, 'Kaynak bağlantıları'),
     h('div', { class: 'group' },
-      ...(extra ? [...on.map((s) => statusRow(s.name, extra[s.key])), statusRow('Atlassian', extra.atlassian)]
+      ...(extra ? [...on.map((s) => statusRow(s.name, extra[s.key], connectorFix(s.key, extra[s.key]))), statusRow('Atlassian', extra.atlassian)]
         : [h('div', { class: 'row' }, h('div', { class: 'grow' }, h('span', {}, 'Bağlantılar Claude Code üzerinden denetlenir. Yarım dakika sürebilir.')), btn)])),
-    extra ? h('div', { class: 'group-foot' }, 'Bir kaynak "Giriş gerekiyor" diyorsa terminalde claude yazıp /mcp ile giriş yap. Atlassian bağlantısı yalnızca Jira token\'ı girilmediyse gerekir.') : null,
+    extra ? h('div', { class: 'group-foot' }, 'Bir kaynak bağlı değilse yanındaki düğmeyle bağla: claude.ai bağlantıları claude.ai → Ayarlar → Bağlayıcılar\'da açılır, Proxyman\'i qaHere ekler. Atlassian bağlantısı yalnızca Jira token\'ı girilmediyse gerekir.') : null,
   ), [h('button', { class: 'btn sm', type: 'button', onclick: closeSheet }, 'Bitti')]);
 }
 $('#cockpitBtn').addEventListener('click', () => showCockpit());
@@ -232,11 +246,12 @@ function jiraSection(d) {
 
 function sourcesSection(d) {
   const marks = {};
+  const fixes = {};
   const btn = h('button', { class: 'btn plain sm', type: 'button', onclick: async () => {
     btn.disabled = true; btn.textContent = 'Denetleniyor…';
     try {
       const r = await api('/api/health/connectors');
-      for (const s of SOURCES) { marks[s.key].textContent = r[s.key]?.detail || ''; marks[s.key].style.color = r[s.key]?.ok ? 'var(--ok)' : 'var(--warn)'; }
+      for (const s of SOURCES) { marks[s.key].textContent = r[s.key]?.detail || ''; marks[s.key].style.color = r[s.key]?.ok ? 'var(--ok)' : 'var(--warn)'; fixes[s.key].replaceChildren(d.sources[s.key] ? connectorFix(s.key, r[s.key], () => btn.click()) || '' : ''); }
       btn.textContent = 'Yeniden denetle';
     } catch (e) { btn.textContent = 'Denetlenemedi'; }
     btn.disabled = false;
@@ -244,9 +259,10 @@ function sourcesSection(d) {
   return h('div', {},
     h('div', { class: 'group' }, ...SOURCES.map((s) => {
       marks[s.key] = h('span', {}, '');
+      fixes[s.key] = h('span', { class: 'fix' });
       const sw = h('input', { type: 'checkbox', class: 'switch', 'aria-label': s.name, onchange: () => { d.sources[s.key] = sw.checked; } });
       sw.checked = Boolean(d.sources[s.key]);
-      return h('div', { class: 'row' }, h('div', { class: 'grow' }, h('b', {}, s.name), h('span', {}, s.desc), marks[s.key]), sw);
+      return h('div', { class: 'row' }, h('div', { class: 'grow' }, h('b', {}, s.name), h('span', {}, s.desc), marks[s.key]), fixes[s.key], sw);
     })),
     h('div', { class: 'group-foot' }, 'Bu kaynaklara Claude hesabındaki bağlantılarla ulaşılır. Açmak için claude.ai → Ayarlar → Bağlayıcılar bölümünden ilgili uygulamayı bağla. Araç yalnızca senin görebildiğin içeriği okur; hiçbir yere yazmaz.'),
     h('div', { class: 'group' }, h('div', { class: 'row' }, h('div', { class: 'grow' }, h('span', {}, 'Seçtiklerinin Claude Code\'da bağlı olup olmadığını gör. Yarım dakika sürebilir.')), btn)),
@@ -967,6 +983,7 @@ function showWelcome() {
   }).catch(() => {});
   api('/api/cockpit/tools').then((t) => {
     set('firebase', t.firebase.ok ? 'ok' : 'bad', t.firebase.ok ? 'giriş var' : 'giriş gerekli');
+    if (!t.firebase.ok) env.querySelector('ul').after(h('div', { class: 'env-fix' }, h('span', {}, t.firebase.detail), fbLoginButton(() => showWelcome())));
     const m = t.testmu || {};
     set('testmu', m.ok === null ? 'off' : m.ok ? 'ok' : 'bad', m.ok === null ? 'ayarlı değil' : m.ok ? (m.detail.match(/aynı anda \d+ koşu/)?.[0] || 'bağlı') : 'bağlanamadı');
     const j = t.meetingJoin;
@@ -1147,12 +1164,83 @@ function renderGuides(key, guides, selectedId) {
       progress,
       h('div', { class: 'acts' },
         version, runMenu(g, frame), askBtn, botBtn, syncBtn,
-        moreMenu([kidsBtn, mocksBtn, regen,
+        moreMenu([kidsBtn, mocksBtn,
+          state.config?.testmu?.hasKey ? h('button', { class: 'btn plain sm', type: 'button', onclick: () => openTestManagerSheet(g) }, 'Test Manager\'a aktar') : null,
+          regen,
           h('a', { class: 'btn plain sm', href: `${base}.html`, target: '_blank', rel: 'noopener', title: 'Tam rapor, düz sırayla' }, 'Yeni sekmede aç'),
           del]),
         h('a', { class: 'btn sm', href: `${base}.pdf` }, 'PDF indir'))),
     ...denialNotes(g),
     h('div', { class: 'gbody' }, frame, ask.el));
+}
+
+/** Kontrol listesini TestMu Test Manager'a aktarma: önizleme → onay → qaHere yazar. Yeniden aktarmada kopya açılmaz. */
+async function openTestManagerSheet(g) {
+  const body = h('div', { class: 'tmx' }, h('p', { class: 'muted' }, 'Test Manager okunuyor…'));
+  const go = h('button', { class: 'btn sm', type: 'button', disabled: true }, 'Aktar');
+  openSheet('Test Manager\'a aktar', body, [h('button', { class: 'btn plain sm', type: 'button', onclick: closeSheet }, 'Vazgeç'), go]);
+  let pv, projects;
+  try { [pv, { projects }] = await Promise.all([api(`/api/guides/${g.key}/${g.id}/testmanager`), api('/api/testmanager/projects')]); }
+  catch (e) { return body.replaceChildren(h('div', { class: 'msg bad' }, e.message)); }
+  const NEW = '__new__';
+  const sel = h('select', { 'aria-label': 'Test Manager projesi' },
+    ...projects.map((p) => h('option', { value: p.id }, p.name)), h('option', { value: NEW }, 'Yeni proje aç…'));
+  sel.value = pv.previous?.projectId && projects.some((p) => p.id === pv.previous.projectId) ? pv.previous.projectId : projects.length ? projects[0].id : NEW;
+  const name = h('input', { class: 'bare', value: `${g.key.split('-')[0]} · qaHere`, placeholder: 'Yeni proje adı', 'aria-label': 'Yeni proje adı' });
+  const nameRow = h('div', { class: 'row' }, h('span', { class: 'k' }, 'Proje adı'), name);
+  const showName = () => { nameRow.hidden = sel.value !== NEW; };
+  sel.onchange = showName; showName();
+  const res = pv.plan.results || {};
+  const resTotal = Object.values(res).reduce((a, b) => a + b, 0);
+  const withRes = h('input', { type: 'checkbox', disabled: !resTotal });
+  withRes.checked = resTotal > 0;
+  const plan = pv.plan;
+  const what = [plan.create && `${plan.create} yeni senaryo`, plan.update && `${plan.update} senaryo güncellenecek`, plan.archive && `${plan.archive} senaryo arşivlenecek`].filter(Boolean).join(', ') || 'Senaryolar güncel; yeni madde yok';
+  const status = h('div', {});
+  body.replaceChildren(...[
+    pv.previous ? h('div', { class: 'msg' }, `${fmtDate(pv.previous.exportedAt)} tarihinde "${pv.previous.projectName || 'Test Manager'}" projesine aktarıldı. Yalnız yeni ve metni değişen maddeler gider; kopya açılmaz.`) : null,
+    h('div', { class: 'group' },
+      h('div', { class: 'row' }, h('span', { class: 'k' }, 'Proje'), sel), nameRow,
+      h('div', { class: 'row' }, h('div', { class: 'grow' }, h('b', {}, `${pv.total} kontrol maddesi`), h('span', {}, `${what}. Her madde bir test senaryosu; rehberle aynı adlı bir klasöre girer, Jira işine bağlanır.`))),
+      h('label', { class: 'row' }, h('div', { class: 'grow' }, h('b', {}, 'İşaretli sonuçları test koşusu olarak işle'),
+        h('span', {}, resTotal ? Object.entries(res).filter(([, n]) => n).map(([p, n]) => `${PL[p]}: ${n} sonuç`).join(' · ') + '. Platform başına bir koşu açılır; Kaldı olanlara hata kaydı not düşülür.' : 'Henüz işaretli sonuç yok.')), withRes)),
+    pv.sample.length ? h('div', { class: 'group-title' }, 'İlk senaryolar') : null,
+    pv.sample.length ? h('ul', { class: 'tmx-sample' }, ...pv.sample.map((x) => h('li', {}, x.title))) : null,
+    h('p', { class: 'hint' }, 'Ortam ve test hazırlığı maddeleri her senaryoya ön koşul olarak yazılır. TestMu\'da silme yok: açılan senaryo ve koşular orada kalır (elle silinebilir).'),
+    status].filter(Boolean));
+  go.disabled = false;
+  go.onclick = async () => {
+    if (sel.value === NEW && !name.value.trim()) { name.focus(); return; }
+    go.disabled = true; sel.disabled = true; name.disabled = true; withRes.disabled = true;
+    status.replaceChildren(h('div', { class: 'msg wait' }, 'Başlıyor…'));
+    let last = null;
+    try {
+      const r = await fetch(`/api/guides/${g.key}/${g.id}/testmanager`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project: sel.value === NEW ? { name: name.value.trim() } : { id: sel.value }, withResults: withRes.checked }) });
+      if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error || `Aktarılamadı (${r.status}).`); }
+      const rd = r.body.getReader(); const dec = new TextDecoder(); let buf = '';
+      for (;;) {
+        const { value, done } = await rd.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        let i;
+        while ((i = buf.indexOf('\n')) !== -1) {
+          const line = buf.slice(0, i); buf = buf.slice(i + 1);
+          let e; try { e = JSON.parse(line); } catch { continue; }
+          if (e.type === 'step') status.replaceChildren(h('div', { class: 'msg wait' }, `${e.message}…`));
+          else last = e;
+        }
+      }
+      if (last?.type !== 'done') throw new Error(last?.message || 'Aktarma tamamlanamadı.');
+      status.replaceChildren(
+        h('div', { class: 'msg ok' }, `"${last.projectName || 'Test Manager'}" projesinde ${last.cases} senaryo hazır${last.runs.length ? `; ${last.runs.map((x) => `${PL[x.platform]} koşusu (${x.count} sonuç)`).join(', ')} açıldı` : ''}.`),
+        ...last.warnings.map((w) => h('div', { class: 'msg warn' }, w)));
+      go.textContent = 'Bitti'; go.disabled = false; go.onclick = closeSheet;
+    } catch (e) {
+      status.replaceChildren(h('div', { class: 'msg bad' }, e.message));
+      go.disabled = false; sel.disabled = false; name.disabled = false; withRes.disabled = !resTotal;
+    }
+  };
 }
 
 /** Rehberin şu anki işini (işaretlenmemiş maddesi olan ilk iş) seçilen platformda sırayla koşturur: simülatörde ya da TestMu gerçek cihazında. */
@@ -2082,7 +2170,7 @@ function testmuPicker(platform, g) {
       upload.disabled = true; msg.textContent = 'Firebase sürümlerine bakılıyor…';
       const r = await api(`/api/firebase/releases?platform=${platform}`).catch((e) => ({ releases: [], error: e.message }));
       upload.disabled = false;
-      if (r.error || !r.releases.length) { msg.textContent = r.error || 'Firebase\'de sürüm yok.'; return; }
+      if (r.error || !r.releases.length) { msg.replaceChildren(r.error || 'Firebase\'de sürüm yok.', ' ', fbFix(r.error, () => { msg.textContent = 'Firebase girişi tamam; şimdi yeniden "Firebase\'den yükle"ye bas.'; }) || ''); return; }
       const keys = [g.key];
       fbSel.replaceChildren(...r.releases.map((x) => h('option', { value: x.name }, `${x.version} (${x.build})${keys.some((k) => x.notes.includes(k)) ? ` · ${g.key} bu sürümde` : ''}`)));
       const hit = r.releases.find((x) => x.notes.includes(g.key));
@@ -2120,7 +2208,7 @@ function androidBuildRow(deviceId, onChange, keys = []) {
   const fmt = (v) => (v ? `${v.version || '?'}${v.build ? ` (${v.build})` : ''}` : 'kurulu değil');
   const paint = (d) => {
     const inst = h('span', {}, h('b', {}, 'Kurulu: '), fmt(d.installed));
-    if (d.error) return box.replaceChildren(inst, h('span', { class: 'hint' }, ` · ${d.error}`));
+    if (d.error) return box.replaceChildren(inst, h('span', { class: 'hint' }, ` · ${d.error}`), fbFix(d.error, () => api(`/api/firebase/android?device=${encodeURIComponent(deviceId)}`).then(paint).catch((e) => paint({ error: e.message }))));
     const rels = d.releases || [];
     if (!rels.length) return box.replaceChildren(inst, h('span', { class: 'hint' }, ' · Firebase\'de sürüm yok.'));
     // Sürüm notlarında iş anahtarı geçiyor mu? (ör. "PROJ-123 - Fix …") İşi içeren ilk sürüm = en küçük build.
@@ -2340,6 +2428,27 @@ function cockpitLinksSheet(onSaved) {
     err), [h('button', { class: 'btn link sm', type: 'button', onclick: closeSheet }, 'Vazgeç'), save]);
 }
 
+// ---- Firebase girişi uygulamadan: düğme CLI'ın Google onay sayfasını tarayıcıda açar, onay gelince kendiliğinden biter.
+const FB_LOGIN_RE = /Firebase.{0,40}(giriş|login)|invalid_grant/i;
+function fbLoginButton(onDone) {
+  const b = h('button', { class: 'btn sm', type: 'button' }, 'Firebase\'e giriş yap');
+  const st = h('span', { class: 'hint fbstate' });
+  b.onclick = async () => {
+    b.disabled = true;
+    let s = await send('/api/firebase/login', 'POST', {}).catch((e) => ({ status: 'error', message: e.message }));
+    while (s.status === 'waiting') {
+      st.replaceChildren(s.message, s.url ? h('a', { href: s.url, target: '_blank', rel: 'noopener' }, ' Sayfa açılmadıysa buradan aç.') : '');
+      await new Promise((r) => setTimeout(r, 2000));
+      s = await api('/api/firebase/login').catch((e) => ({ status: 'error', message: e.message }));
+    }
+    st.textContent = s.message || '';
+    if (s.status === 'ok') { b.remove(); onDone?.(); return; }
+    b.disabled = false; b.textContent = 'Yeniden dene';
+  };
+  return h('span', { class: 'fbfix' }, b, st);
+}
+const fbFix = (msg, onDone) => (FB_LOGIN_RE.test(msg || '') ? fbLoginButton(onDone) : null);
+
 // ---- Cloud: gerçek cihaz bulutları (TestMu; BrowserStack sırada) ----
 
 function showCloud() {
@@ -2384,6 +2493,13 @@ function showCloud() {
           h('a', { href: 'https://applive.lambdatest.com/', target: '_blank', rel: 'noopener' }, 'App Live')) : null);
     }));
     const tmu = providers.find((p) => p.id === 'testmu');
+    const tmg = tmu?.testManager;
+    if (tmu?.configured && tmu.ok && tmg) {
+      provBox.insertBefore(h('div', { class: `cl-card ${tmg.ok ? 'ok' : 'bad'}` },
+        h('div', { class: 'cl-top' }, h('b', {}, 'TestMu Test Manager'), h('span', { class: 'cl-state' }, h('i', {}), tmg.ok ? 'Bağlı' : 'Bağlanamadı')),
+        tmg.ok ? h('div', { class: 'cl-meter' }, h('div', {}, h('strong', {}, String(tmg.total)), h('span', {}, 'proje'))) : h('p', {}, tmg.error),
+        h('p', {}, tmg.ok ? 'Ek kurulum gerekmez: TestMu anahtarınla bağlanır. Bir rehberin kontrol listesini aktarmak için rehberde Diğer → Test Manager\'a aktar.' : 'TestMu anahtarın Test Manager\'a erişemedi.')), provBox.children[1] || null);
+    }
     if (!tmu?.configured || !tmu.ok) {
       const msg = !tmu?.configured ? 'TestMu bağlanınca son koşular, cihazlar ve yüklü sürümler burada görünür.' : 'TestMu\'ya bağlanılamadı.';
       for (const b of [runBox, devBox, appBox]) b.replaceChildren(h('p', { class: 'muted' }, msg));
@@ -2475,7 +2591,7 @@ function showCockpit() {
     return h('div', { class: 'group' }, head,
       row(a.device ? 'ok' : 'bad', p === 'ios' ? 'Simülatör' : 'Cihaz', a.device?.name || (p === 'ios' ? 'Açık simülatör yok' : 'Bağlı emülatör ya da cihaz yok')),
       row(!a.device ? '' : a.installed ? 'ok' : 'bad', 'Kurulu sürüm', !a.device ? '—' : ver || 'Uygulama kurulu değil'),
-      row(same === true ? 'ok' : same === false ? 'warn' : '', 'Firebase\'deki son sürüm', a.latest?.error || latest || '—',
+      row(same === true ? 'ok' : same === false ? 'warn' : '', 'Firebase\'deki son sürüm', a.latest?.error || latest || '—', fbFix(a.latest?.error, load),
         same === false && p === 'android' ? h('span', { class: 'val' }, 'Rehberden "Sürüm kur" ile güncelle') : null),
       row(!a.installed ? '' : a.running ? 'ok' : 'warn', 'Çalışıyor mu', !a.installed ? '—' : a.running ? 'Açık' : 'Kapalı', a.installed && a.device ? launch : null),
       row(a.crash ? 'bad' : a.installed ? 'ok' : '', 'Son çökme', a.crash ? `${a.crash.at ? fmtDate(a.crash.at.includes('T') ? a.crash.at : `${new Date().getFullYear()}-${a.crash.at.replace(' ', 'T')}`) : ''} ${a.crash.detail}` : a.installed ? (p === 'android' ? 'Çökme kaydı yok' : 'Son 3 günde çökme raporu yok') : '—'),
@@ -2575,7 +2691,7 @@ function showCockpit() {
         row(dotOf(hl.claude), 'Claude Code', hl.claude?.detail),
         row(hl.jira ? (!hl.jira.configured ? 'warn' : dotOf(hl.jira)) : '', 'Jira', hl.jira?.detail),
         row(dotOf(hl.pdf), 'PDF', hl.pdf?.detail),
-        row(dotOf(t.firebase), 'Firebase App Distribution', t.firebase.detail),
+        row(dotOf(t.firebase), 'Firebase App Distribution', t.firebase.detail, t.firebase.ok ? null : fbLoginButton(load)),
         row(t.testmu.ok === null ? '' : dotOf(t.testmu), 'TestMu gerçek cihazlar', t.testmu.detail, t.testmu.ok === null ? h('button', { class: 'btn plain sm', type: 'button', onclick: openSettings }, 'Ayarla') : null),
         row(dotOf(t.adb), 'Android araçları', t.adb.detail),
         row(dotOf(t.xcode), 'Xcode simülatörü', t.xcode.detail),

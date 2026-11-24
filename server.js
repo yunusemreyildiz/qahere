@@ -9,7 +9,7 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { jiraConfigured, jiraBaseUrl, listEpics, searchIssues, getIssueTree, parseIssueKey, testConnection, listIssueTypes, listLinkTypes, searchUsers, listIssues, myself, listBoards, collectForGuide } from './lib/jira.js';
 import { draftBug, fileBug, draftMockBody } from './lib/bug.js';
-import { proxymanStatus, listFlows, flowText, createMock, createMockFromFlow, setMockEnabled, deleteMock } from './lib/proxyman.js';
+import { proxymanBin, proxymanInstalled, proxymanStatus, listFlows, flowText, createMock, createMockFromFlow, setMockEnabled, deleteMock } from './lib/proxyman.js';
 import { getSettings, publicSettings, saveSettings, enabledSources } from './lib/config.js';
 import { generateGuide } from './lib/generate.js';
 import { saveGuide, listGuides, deleteGuide, guidePaths, dataDir, setResults, guideHtml, addBug, updateMeta } from './lib/store.js';
@@ -19,12 +19,13 @@ import { askGuide, clearChat, markBugbotFiled } from './lib/ask.js';
 import { notifySlackSelf, slackSelfMessage } from './lib/notify.js';
 import { parseMcpList, inspectConnector } from './lib/connectors.js';
 import { scanSources } from './lib/preflight.js';
-import { firebaseUser, listReleases, installedVersion, installRelease, buildsForKeys } from './lib/firebase.js';
+import { firebaseUser, listReleases, installedVersion, installRelease, buildsForKeys, startLogin as firebaseLogin, loginState as firebaseLoginState, cancelLogin as firebaseCancelLogin, LOGIN_NEEDED as FB_LOGIN_NEEDED } from './lib/firebase.js';
 import { proposeUpdate, saveUpdatedVersion, opCount, autoCheck, isAutoRunning } from './lib/sync.js';
 import { screenshot, devices } from './lib/device.js';
 import { appStatus, launchApp, openDeeplink, checkEndpoint, checkAssociations, toolsStatus, attention } from './lib/cockpit.js';
 import { meetingsOverview } from './lib/meetings.js';
-import { testConnection as testmuTest, uploadFromFirebase, recentSessions } from './lib/testmu.js';
+import { exportPreview as tmPreview, exportGuide as tmExport, listProjects as tmProjects } from './lib/testmanager.js';
+import { testConnection as testmuTest, uploadFromFirebase, recentSessions, testManagerStatus } from './lib/testmu.js';
 import { startCloudRun, getCloudRun, publicCloudRun, cancelCloudRun, listDevices, listApps } from './lib/cloudrun.js';
 import { setClaudeInMeeting, recordResult, autoJoinTick, joinBusy } from './lib/meetjoin.js';
 import { readFlow, saveFlow, draftFlow, startRun, getRun, publicRun, cancelRun, activeRun } from './lib/runner.js';
@@ -415,6 +416,15 @@ app.post('/api/bugs', wrap(async (req, res) => {
 
 // ---- Proxyman (qaHere doğrudan konuşur; Claude'a araç verilmez) -------------------------
 
+// Proxyman'i Claude Code'a ekler (kullanıcı tıklar): rehber üretimi trafiği okuyabilsin. Terminal gerekmez.
+app.post('/api/connectors/proxyman/add', wrap(async (_req, res) => {
+  if (!proxymanInstalled()) return res.status(400).json({ error: 'Proxyman kurulu değil (ya da MCP sunucusu bulunamadı). Proxyman 5.20 ve üstünü kur.' });
+  const list = await run(claudeBin(), ['mcp', 'list'], 90_000);
+  if (/^proxyman:/m.test(list.out)) return res.json({ ok: true, already: true });
+  const r = await run(claudeBin(), ['mcp', 'add', '-s', 'user', 'proxyman', '--', proxymanBin()], 60_000);
+  if (!r.ok) return res.status(500).json({ error: `Eklenemedi: ${(r.err || r.out).slice(0, 200)}` });
+  res.json({ ok: true });
+}));
 app.get('/api/proxyman/status', wrap(async (_req, res) => res.json(await proxymanStatus())));
 app.get('/api/proxyman/flows', wrap(async (req, res) => res.json({ flows: await listFlows({ q: req.query.q, limit: req.query.limit }) })));
 app.get('/api/proxyman/flows/:id', wrap(async (req, res) => res.json({ text: await flowText(req.params.id) })));
@@ -481,16 +491,20 @@ app.get('/api/runs/:id', (req, res) => {
 app.post('/api/runs/:id/cancel', (req, res) => res.json({ ok: cancelRun(req.params.id) || cancelCloudRun(req.params.id) }));
 
 // Firebase App Distribution → Android emülatörüne kurulum (koşudan önce doğru sürüm).
+// Firebase girişi uygulamadan: CLI tarayıcıda Google onayını açar; arayüz durumu sorar.
+app.post('/api/firebase/login', wrap(async (_req, res) => res.json(firebaseLogin())));
+app.get('/api/firebase/login', wrap(async (_req, res) => res.json({ ...firebaseLoginState(), user: await firebaseUser() })));
+app.delete('/api/firebase/login', wrap(async (_req, res) => res.json(firebaseCancelLogin())));
 app.get('/api/firebase/android', wrap(async (req, res) => {
   const device = String(req.query.device || '');
   const [user, installed] = await Promise.all([firebaseUser(), installedVersion(device).catch(() => null)]);
-  if (!user.loggedIn) return res.json({ user, installed, error: 'Firebase\'e giriş yapılmamış. Terminalde bir kez "firebase login" çalıştır.' });
+  if (!user.loggedIn) return res.json({ user, installed, error: FB_LOGIN_NEEDED });
   try { res.json({ user, installed, ...(await listReleases()) }); }
   catch (e) { res.json({ user, installed, error: e.message }); }
 }));
 app.get('/api/firebase/releases', wrap(async (req, res) => {
   const p = req.query.platform === 'ios' ? 'ios' : 'android';
-  if (!(await firebaseUser()).loggedIn) return res.json({ releases: [], error: 'Firebase\'e giriş yapılmamış. Terminalde bir kez "firebase login" çalıştır.' });
+  if (!(await firebaseUser()).loggedIn) return res.json({ releases: [], error: FB_LOGIN_NEEDED });
   try { res.json(await listReleases(20, p)); } catch (e) { res.json({ releases: [], error: e.message }); }
 }));
 // İş anahtarları → Android/iOS'ta işin geldiği sürümler (sürüm notlarından).
@@ -512,6 +526,26 @@ app.post('/api/firebase/install', wrap(async (req, res) => {
 // Açık simülatörden ya da emülatörden ekran görüntüsü (yerel komutlar; dışarıya bir şey gitmez).
 app.post('/api/screenshot', wrap(async (req, res) => res.json(await screenshot(req.body?.platform))));
 
+// TestMu Test Manager'a aktarma: önizleme okur; aktarma kullanıcının onayıyla qaHere yazar (Claude yok).
+app.get('/api/testmanager/projects', wrap(async (_req, res) => res.json({ projects: await tmProjects() })));
+app.get('/api/guides/:key/:id/testmanager', wrap(async (req, res) => res.json(await tmPreview(req.params.key, req.params.id))));
+const tmBusy = new Set();
+app.post('/api/guides/:key/:id/testmanager', wrap(async (req, res) => {
+  const k = `${req.params.key}/${req.params.id}`;
+  if (tmBusy.has(k)) return res.status(409).json({ error: 'Bu rehber şu an aktarılıyor.' });
+  const b = req.body || {};
+  const project = b.project?.id ? { id: String(b.project.id) } : { name: String(b.project?.name || '').slice(0, 120) };
+  tmBusy.add(k);
+  res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+  res.flushHeaders();
+  const write = (e) => { if (!res.writableEnded) res.write(`${JSON.stringify(e)}\n`); };
+  try {
+    const r = await tmExport({ key: req.params.key, id: req.params.id, project, withResults: Boolean(b.withResults), onEvent: write });
+    res.end(`${JSON.stringify({ type: 'done', ...r })}\n`);
+  } catch (e) { res.end(`${JSON.stringify({ type: 'error', message: e.message })}\n`); }
+  finally { tmBusy.delete(k); }
+}));
+
 app.post('/api/testmu/test', wrap(async (req, res) => res.json(await testmuTest(req.body || {}))));
 const plat = (p) => { if (!['ios', 'android'].includes(p)) throw Object.assign(new Error('Platform ios ya da android olmalı.'), { status: 400 }); return p; };
 app.get('/api/testmu/devices', wrap(async (req, res) => res.json({ devices: await listDevices(plat(req.query.platform)) })));
@@ -522,7 +556,8 @@ app.get('/api/cloud', wrap(async (_req, res) => {
   const testmu = { id: 'testmu', name: 'TestMu AI', configured: Boolean(t.username && t.accessKey), username: t.username || '' };
   let sessions = [];
   if (testmu.configured) {
-    const [conn, ses] = await Promise.allSettled([testmuTest(), recentSessions(15)]);
+    const [conn, ses, tmg] = await Promise.allSettled([testmuTest(), recentSessions(15), testManagerStatus()]);
+    testmu.testManager = tmg.status === 'fulfilled' ? tmg.value : { ok: false, error: tmg.reason.message };
     if (conn.status === 'fulfilled') Object.assign(testmu, { ok: true, concurrency: conn.value.concurrency || null });
     else Object.assign(testmu, { ok: false, error: conn.reason.message });
     if (ses.status === 'fulfilled') sessions = ses.value;

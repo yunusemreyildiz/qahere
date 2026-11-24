@@ -91,11 +91,7 @@ Rehberin Slack, Notion, Confluence, Figma ya da Claude Docs'u okuyabilmesi için
 
 Terminalde `claude` açıkken `/mcp` yazıp aynı bağlantılara oradan da giriş yapabilirsin. Bazı şirketlerde bağlantıyı önce bir yöneticinin onaylaması gerekir.
 
-**Proxyman (isteğe bağlı, macOS):** Rehber yakalanan gerçek trafiği de okusun istersen Proxyman'in MCP sunucusunu Claude Code'a bir kez ekle, sonra Ayarlar → Kaynaklar'dan Proxyman'i aç:
-
-```bash
-claude mcp add -s user proxyman -- /Applications/Proxyman.app/Contents/MacOS/mcp-server
-```
+**Proxyman (isteğe bağlı, macOS):** Rehber yakalanan gerçek trafiği de okusun istersen Ayarlar → Kaynaklar'dan Proxyman'i aç ve **Bağlantıları denetle**'ye bas; Claude Code'da yoksa yanındaki **Claude'a ekle** düğmesi Proxyman'in MCP sunucusunu ekler (terminal gerekmez). Bağlı olmayan claude.ai bağlantıları için aynı yerde claude.ai'nin Bağlayıcılar sayfasına giden düğme çıkar.
 
 Hata kaydına istek eklemek ve mock kurmak için bu adım gerekmez; qaHere Proxyman'le doğrudan konuşur.
 
@@ -224,7 +220,7 @@ qaHere'nin arkasındaki Claude Code Claude Meetings'i doğrudan okuyamadığı i
 
 **Ayarlar → Toplantılar:** özelliği tamamen açıp kapatırsın, hangi kelimeler geçince eklensin / hangileri hariç tutulsun diye kuralları değiştirirsin. Ekleme görevi her çalıştığında yaklaşan toplantıları ve kararını burada listeler; her birine "Kural · Girsin · Girmesin" diyebilirsin. Seçimin görevin bir sonraki çalışmasında (hafta içi saatte bir) uygulanır; "Girmesin" dediğin toplantıya Claude eklenmişse çıkarılır.
 
-**TestMu (eski adı LambdaTest) gerçek cihazlar:** Ayarlar → TestMu bölümüne kullanıcı adını ve erişim anahtarını gir. Maddenin koşu penceresinde (ve iş iş toplu koşuda) "Nerede koşsun" için **TestMu gerçek cihaz**'ı seç, cihazı ve sürümü belirle. Sürüm yoksa **Firebase'den yükle** Firebase App Distribution'daki sürümü (Android .apk, iOS .ipa) TestMu'ya aktarır; iOS'u da gerçek iPhone'da test edebilirsin. HyperExecute gerekmez: qaHere maddenin Maestro akışını Appium komutlarına çevirip gerçek cihazda koşar. Sonuç maddeye işlenir, koşu videosu ve TestMu oturumu bağlantı olarak gelir; kalırsa hata kaydına video bağlantısı ve ekran görüntüsü eklenir. Elle test için TestMu App Live'da yüklediğin sürümler listelenir. Rehberin araç çubuğundaki **Cihazda koş** şu anki işin maddelerini sırayla koşturur. Üst çubuktaki **Cloud** ekranı bağlı bulut sağlayıcılarını (şimdilik TestMu; BrowserStack sırada), anlık cihaz kullanımını, son koşuları (video ve oturum bağlantısıyla), cihaz listesini ve yüklü sürümleri gösterir.
+**TestMu (eski adı LambdaTest) gerçek cihazlar:** Ayarlar → TestMu bölümüne kullanıcı adını ve erişim anahtarını gir. Maddenin koşu penceresinde (ve iş iş toplu koşuda) "Nerede koşsun" için **TestMu gerçek cihaz**'ı seç, cihazı ve sürümü belirle. Sürüm yoksa **Firebase'den yükle** Firebase App Distribution'daki sürümü (Android .apk, iOS .ipa) TestMu'ya aktarır; iOS'u da gerçek iPhone'da test edebilirsin. HyperExecute gerekmez: qaHere maddenin Maestro akışını Appium komutlarına çevirip gerçek cihazda koşar. Sonuç maddeye işlenir, koşu videosu ve TestMu oturumu bağlantı olarak gelir; kalırsa hata kaydına video bağlantısı ve ekran görüntüsü eklenir. Elle test için TestMu App Live'da yüklediğin sürümler listelenir. Rehberin araç çubuğundaki **Cihazda koş** şu anki işin maddelerini sırayla koşturur. Rehberde **Diğer → Test Manager'a aktar** kontrol listesini TestMu Test Manager'a taşır: her madde bir test senaryosu olur (rehberle aynı adlı klasörde, Jira işine bağlı; ortam ve test hazırlığı ön koşul olarak yazılır), istersen işaretli sonuçlar platform başına bir test koşusu olarak işlenir. Önce önizleme gösterilir; aynı rehberi yeniden aktarınca kopya açılmaz, yalnız yeni ve değişen maddeler gider. Üst çubuktaki **Cloud** ekranı bağlı bulut sağlayıcılarını (şimdilik TestMu ve Test Manager, ek kurulum olmadan aynı anahtarla; BrowserStack sırada), anlık cihaz kullanımını, son koşuları (video ve oturum bağlantısıyla), cihaz listesini ve yüklü sürümleri gösterir.
 
 **Kokpit:** üst çubuktaki **Kokpit** düğmesi test ortamının sağlığını tek ekranda gösterir. Üstteki ışıklar yeşil, sarı ya da kırmızı yanar; birine tıklayınca ayrıntısına inersin.
 
@@ -262,9 +258,7 @@ Bir kez kurulum: Firebase CLI'ı kur ve Firebase console'a girebildiğin Google 
 npm install -g firebase-tools
 ```
 
-```bash
-firebase login
-```
+Girişi uygulamadan yap: Kokpit'te (ya da sürüm seçilen her yerde) **Firebase'e giriş yap** Google onay sayfasını tarayıcıda açar, onaylayınca kendiliğinden tamamlanır. Girişin süresi dolarsa aynı düğme yeniden çıkar.
 
 qaHere, Ayarlar → Simülatörde koşu'daki Android paket adından uygulamanı Firebase projelerinde kendisi bulur. Belirteç saklamaz; CLI girişini okur. İmza farkı yüzünden kurulamazsa (ör. başka kanaldan kurulmuşsa) önce kaldırmak için sorar, çünkü bu uygulamanın emülatördeki verisini siler. iOS'taki App Distribution sürümleri gerçek cihaz içindir; simülatöre kurulamaz.
 

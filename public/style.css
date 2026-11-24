@@ -609,3 +609,12 @@ html.desktop .bar .brand[role=button]{-webkit-app-region:no-drag}
 .cl-st.ok{color:var(--ok,#2e9d5b)} .cl-st.bad{color:var(--bad,#d0453a)}
 .cl-run .grow span{font-size:12.5px}
 .cl-more summary{cursor:pointer;padding:10px 16px;color:var(--accent);font-size:13px}
+.fbfix{display:inline-flex;flex-wrap:wrap;align-items:center;gap:6px 10px}
+.fbfix .fbstate:empty{display:none}
+.fbfix .fbstate a{color:var(--accent)}
+.env-fix{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:10px 0 12px;font-size:13px;color:var(--muted)}
+.tmx .row .k{min-width:72px;color:var(--muted);font-size:13px}
+.tmx .row select,.tmx .row input.bare{flex:1}
+.tmx label.row{cursor:pointer}
+.tmx-sample{margin:0 0 12px;padding-left:18px;font-size:13.5px;line-height:1.5;color:var(--ink)}
+.tmx-sample li{margin:3px 0}
